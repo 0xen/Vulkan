@@ -34,5 +34,5 @@ endfunction()
 #add_subdirectory_with_folder("Third Party/libjpeg-master" third_party/libjpeg-master)
 
 add_subdirectory("Vk-Helper")
-add_subdirectory("0 - Instance")
-add_subdirectory("1 - Physical Device")
+add_subdirectory("0-Instance")
+add_subdirectory("1-Physical Device")

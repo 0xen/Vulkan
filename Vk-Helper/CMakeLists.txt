@@ -6,11 +6,14 @@ project(${project_name})
 set(HAVE_LIBC TRUE)
 set(src
     src/VkInitializers.cpp
+    src/VkCore.cpp
 
 )
  
 set(headers
     include/VkInitializers.hpp
+    include/VkCore.hpp
+
 )
 
 include_directories(include)
