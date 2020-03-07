@@ -1,6 +1,8 @@
 #include <VkCore.hpp>
 #include <assert.h>
 #include <stdio.h>
+#include <string.h>
+#include <memory>
 
 // A basic debug callback. A more advanced one could be created, but this will do for basic debugging
 VKAPI_ATTR VkBool32 VKAPI_CALL MyDebugReportCallback(
@@ -15,6 +17,43 @@ VKAPI_ATTR VkBool32 VKAPI_CALL MyDebugReportCallback(
 {
 	printf(pMessage);
 	return VK_FALSE;
+}
+
+
+// Compare the required layers to the avaliable layers on the system
+bool VkHelper::CheckLayersSupport(const char** layers, int count)
+{
+	// Find out how many layers are avaliable on the system
+	uint32_t layerCount;
+	vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
+
+	// Using the count, tell the system how many layer definitions we want to read
+	// These layer properties are the layers that are avaliable on the system
+	std::unique_ptr<VkLayerProperties[]> layerProperties(new VkLayerProperties[layerCount]());
+	vkEnumerateInstanceLayerProperties(&layerCount, layerProperties.get());
+
+	// Loop through for each layer we want to check
+	for (int i = 0; i < count; ++i)
+	{
+		bool layerFound = false;
+		// Loop through for each avaliable system layer and atempt to find our required layer
+		for (int j = 0; j < layerCount; ++j)
+		{
+			// Check to see if the layer matches
+			if (strcmp(layers[i], layerProperties[j].layerName) == 0)
+			{
+				layerFound = true;
+				break;
+			}
+		}
+		// If we are missing the required layer, report back
+		if (!layerFound)
+		{
+			return false;
+		}
+	}
+	// Found all the layers
+	return true;
 }
 
 VkInstance VkHelper::CreateInstance(const char ** extensions, unsigned int extensions_count, const char ** layers, unsigned int layerCount, const char * app_name, uint32_t app_ver, const char * engine_name, uint32_t engine_ver, uint32_t api_version)

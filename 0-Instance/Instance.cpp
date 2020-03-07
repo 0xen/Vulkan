@@ -8,7 +8,7 @@
 VkInstance instance;
 
 // Compare the required layers to the avaliable layers on the system
-bool CheckLayersSupport(const char** layers, int coumt)
+bool CheckLayersSupport(const char** layers, int count)
 {
 	// Find out how many layers are avaliable on the system
 	uint32_t layerCount;
@@ -20,7 +20,7 @@ bool CheckLayersSupport(const char** layers, int coumt)
 	vkEnumerateInstanceLayerProperties(&layerCount, layerProperties.get());
 
 	// Loop through for each layer we want to check
-	for (int i = 0 ; i < coumt; ++i)
+	for (int i = 0 ; i < count; ++i)
 	{
 		bool layerFound = false;
 		// Loop through for each avaliable system layer and atempt to find our required layer
