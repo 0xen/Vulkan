@@ -8,5 +8,8 @@ namespace VkHelper
 
 	VkInstanceCreateInfo InstanceCreateInfo(VkApplicationInfo& app_info, const char** extensions, unsigned int extensions_count, const char** layers, unsigned int layerCount);
 
-	
+	VkDeviceQueueCreateInfo DeviceQueueCreateInfo(const float* queue_priority, uint32_t queue_count, uint32_t queue_family);
+
+	VkDeviceCreateInfo DeviceCreateInfo(VkDeviceQueueCreateInfo* queue_infos, uint32_t queue_count, VkPhysicalDeviceFeatures& physical_device_features,
+		const char** extensions, unsigned int extensions_count);
 }

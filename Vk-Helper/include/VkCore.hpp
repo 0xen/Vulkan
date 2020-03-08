@@ -25,4 +25,7 @@ namespace VkHelper
 	bool GetPhysicalDevice(const VkInstance& instance, VkPhysicalDevice& physical_device, VkPhysicalDeviceProperties& device_properties, uint32_t& queue_family_index,
 		VkPhysicalDeviceFeatures& device_features, VkPhysicalDeviceMemoryProperties& device_mem_properties, const char ** physical_device_extentions, const unsigned int extention_count,
 		VkQueueFlags required_queue_flags);
+
+	VkDevice CreateDevice(const VkPhysicalDevice& physical_device, VkDeviceQueueCreateInfo* queue_infos, uint32_t queue_info_count, VkPhysicalDeviceFeatures& physical_device_features,
+		const char** extensions, unsigned int extensions_count);
 }

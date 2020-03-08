@@ -17,11 +17,7 @@ VkPhysicalDeviceProperties physical_device_properties;
 VkPhysicalDeviceFeatures physical_device_features;
 VkPhysicalDeviceMemoryProperties physical_device_mem_properties;
 
-
-// Define what Device Extentions we require
-const uint32_t physical_device_extention_count = 1;
-// Note that this extention list is diffrent from the instance on as we are telling the system what device settings we need.
-const char *physical_device_extensions[physical_device_extention_count] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+VkDevice device = VK_NULL_HANDLE;
 
 
 // Everything within the Setup is from previous tuturials
@@ -52,7 +48,10 @@ void Setup()
 	// This is usefull as it tells us about any issues without application
 	debugger = VkHelper::CreateDebugger(instance);
 
-
+	// Define what Device Extentions we require
+	const uint32_t physical_device_extention_count = 1;
+	// Note that this extention list is diffrent from the instance on as we are telling the system what device settings we need.
+	const char *physical_device_extensions[physical_device_extention_count] = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
 
 	// Find a physical device for us to use
 	bool foundPhysicalDevice = VkHelper::GetPhysicalDevice(
@@ -67,7 +66,27 @@ void Setup()
 		VK_QUEUE_GRAPHICS_BIT                                  // What queues we need to be avaliable
 	);
 
+	// Make sure we found a physical device
 	assert(foundPhysicalDevice);
+
+	// Define how many queues we will need in our project, for now, we will just create a single queue
+	static const float queue_priority = 1.0f;
+	VkDeviceQueueCreateInfo queue_create_info = VkHelper::DeviceQueueCreateInfo(
+		&queue_priority,
+		1,
+		physical_devices_queue_family
+	);
+
+
+	// Now we have the physical device, create the device instance
+	device = VkHelper::CreateDevice(                           
+		physical_device,                                       // The physical device we are basic the device from
+		&queue_create_info,                                    // A pointer array, pointing to a list of queues we want to make
+		1,                                                     // How many queues are in the list
+		physical_device_features,                              // What features do you want enabled on the device
+		physical_device_extensions,                            // What extentions do you want on the device
+		physical_device_extention_count                        // How many extentions are there
+	);
 
 	
 }
@@ -78,6 +97,13 @@ void Setup()
 // - Instance
 void Destroy()
 {
+
+	// Clean up the device now that the project is stopping
+	vkDestroyDevice(
+		device,
+		nullptr
+	);
+
 	// Destroy the debug callback
 	// We cant directly call vkDestroyDebugReportCallbackEXT as we need to find the pointer within the Vulkan DLL, See function inplmentation for details.
 	VkHelper::DestroyDebugger(
@@ -97,47 +123,18 @@ int main(int argc, char **argv)
 	// Setup the components from the previous projects
 	Setup();
 
-	// Define how many queues we will need in our project, for now, we will just create a single queue
-	static const float queue_priority = 1.0f;
-	VkDeviceQueueCreateInfo queue_create_info = {};                                
-	queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;          // What type of creation strucutre is this
-	queue_create_info.queueFamilyIndex = physical_devices_queue_family;            // Queue family index we are wanting to make
-	queue_create_info.queueCount = 1;                                              // How many queues we are trying to make
-	queue_create_info.pQueuePriorities = &queue_priority;                          // Out of all the queues we are creating, how are we prioritizing them?
 
 
-	// Create the create info for the device itself
-	VkDeviceCreateInfo create_info = {};
-	create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;                      // What type of creation strucutre is this
-	create_info.pQueueCreateInfos = &queue_create_info;                            // A pointer to the queue create array
-	create_info.queueCreateInfoCount = 1;                                          // How many queue create instances are there
-	create_info.pEnabledFeatures = &physical_device_features;                      // What features do we want enabled on the device
-	create_info.enabledExtensionCount = physical_device_extention_count;           // How many features are we requesting
-	create_info.ppEnabledExtensionNames = physical_device_extensions;              // What extentions do we want to enable
 
 
-	VkDevice device = VK_NULL_HANDLE;
-	 // Finish off by creating the device itself
-	VkResult result = vkCreateDevice(
-		physical_device,
-		&create_info,
-		nullptr,
-		&device
-	);
-
-	// Was the vulkan device created sucsessfully
-	assert(result == VK_SUCCESS);
-
-	////////////////////////////////////////
-	///// Finished Creating the Device ///// 
-	////////////////////////////////////////
 
 
-	// Clean up the device now that the project is stopping
-	vkDestroyDevice(
-		device,
-		nullptr
-	);
+
+	//////////////////////////////////////////////
+	///// Finished Creating the Command Pool ///// 
+	//////////////////////////////////////////////
+
+
 	// Finish previous projects cleanups
 	Destroy();
 

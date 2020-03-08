@@ -1,4 +1,5 @@
 #include <VkCore.hpp>
+#include <VkInitializers.hpp>
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -56,28 +57,26 @@ bool VkHelper::CheckLayersSupport(const char** layers, int count)
 	return true;
 }
 
-VkInstance VkHelper::CreateInstance(const char ** extensions, unsigned int extensions_count, const char ** layers, unsigned int layerCount, const char * app_name, uint32_t app_ver, const char * engine_name, uint32_t engine_ver, uint32_t api_version)
+VkInstance VkHelper::CreateInstance(const char ** extensions, unsigned int extensions_count, const char ** layers, unsigned int layerCount, const char * app_name, uint32_t app_ver, 
+	const char * engine_name, uint32_t engine_ver, uint32_t api_version)
 {
 	VkInstance instance;
 
-	VkApplicationInfo app_info = {};
-	app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-	app_info.pApplicationName = "0 - Instance";                  // Application name
-	app_info.applicationVersion = VK_MAKE_VERSION(1, 0, 0);	     // Application version
-	app_info.pEngineName = "Vulkan";                             // Engine name
-	app_info.engineVersion = VK_MAKE_VERSION(1, 0, 0);           // Engine version
-	app_info.apiVersion = VK_MAKE_VERSION(1, 1, 108);            // Required API version
+	VkApplicationInfo app_info = VkHelper::ApplicationInfo(
+		app_name,                                                // Application name
+		app_ver,                                                 // Application version
+		engine_name,                                             // Engine name
+		engine_ver,                                              // Engine version
+		api_version                                              // Required API version
+	);
 
-
-
-	VkInstanceCreateInfo create_info = {};
-	create_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-	create_info.pApplicationInfo = &app_info;                    // Pointer to the application information created
-	create_info.enabledExtensionCount = extensions_count;        // The amount of extensions we wish to enable
-	create_info.ppEnabledExtensionNames = extensions;            // The raw data of the extensions to enable
-	create_info.enabledLayerCount = layerCount;                  // The amount of layers we wish to enable
-	create_info.ppEnabledLayerNames = layers;                    // The raw data of the layers to enable
-
+	VkInstanceCreateInfo create_info = VkHelper::InstanceCreateInfo(
+		app_info,                                                // Pointer to the application information created
+		extensions,                                              // The raw data of the extensions to enable
+		extensions_count,                                        // The amount of extensions we wish to enable
+		layers,                                                  // The raw data of the layers to enable
+		layerCount                                               // The amount of layers we wish to enable
+	);
 
 	VkResult result = vkCreateInstance(
 		&create_info,                                            // Information to pass to the function
@@ -301,4 +300,28 @@ bool VkHelper::GetPhysicalDevice(const VkInstance& instance, VkPhysicalDevice & 
 
 	// Check to see if the device is valid
 	return physical_device != VK_NULL_HANDLE;
+}
+
+VkDevice VkHelper::CreateDevice(const VkPhysicalDevice & physical_device, VkDeviceQueueCreateInfo * queue_infos, uint32_t queue_info_count, VkPhysicalDeviceFeatures & physical_device_features,
+	const char** extensions, unsigned int extensions_count)
+{
+	// Create a device create info for the device
+	VkDeviceCreateInfo device_create_info = VkHelper::DeviceCreateInfo(
+		queue_infos,                                            // Queues we want to enable
+		queue_info_count,                                       // How many queue instances
+		physical_device_features,                               // The physical devices instances
+		extensions,                                             // What device extentions do we want
+		extensions_count                                        // How many extentions
+	);
+	VkDevice device = VK_NULL_HANDLE;
+	// Finish off by creating the device itself
+	VkResult result = vkCreateDevice(
+		physical_device,
+		&device_create_info,
+		nullptr,
+		&device
+	);
+	// Was the vulkan device created sucsessfully
+	assert(result == VK_SUCCESS);
+	return device;
 }
