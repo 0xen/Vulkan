@@ -15,4 +15,14 @@ namespace VkHelper
 	VkDebugReportCallbackEXT CreateDebugger(const VkInstance& instance);
 
 	void DestroyDebugger(const VkInstance& instance, const VkDebugReportCallbackEXT& debugger);
+
+	// Check to see if a physical device has the required extention support
+	bool HasRequiredExtentions(const VkPhysicalDevice& physical_device, const char** required_extentions, const uint32_t& required_extention_count);
+
+	// Find a queue family that has the required queue types
+	bool GetQueueFamily(const VkPhysicalDevice& physical_device, VkQueueFlags required_queue_flags, uint32_t& queue_family_index);
+
+	bool GetPhysicalDevice(const VkInstance& instance, VkPhysicalDevice& physical_device, VkPhysicalDeviceProperties& device_properties, uint32_t& queue_family_index,
+		VkPhysicalDeviceFeatures& device_features, VkPhysicalDeviceMemoryProperties& device_mem_properties, const char ** physical_device_extentions, const unsigned int extention_count,
+		VkQueueFlags required_queue_flags);
 }

@@ -35,4 +35,5 @@ endfunction()
 
 add_subdirectory("Vk-Helper")
 add_subdirectory("0-Instance")
-add_subdirectory("1-Physical Device")
+add_subdirectory("1-PhysicalDevice")
+add_subdirectory("2-Device")

@@ -19,9 +19,9 @@ VkDebugReportCallbackEXT debugger;
 void Setup()
 {
 	// Define what Layers and Extentions we require
-	const unsigned int extention_count = 1;
+	const uint32_t extention_count = 1;
 	const char *instance_extensions[extention_count] = { "VK_EXT_debug_report" };
-	const unsigned int layer_count = 1;
+	const uint32_t layer_count = 1;
 	const char *instance_layers[layer_count] = { "VK_LAYER_LUNARG_standard_validation" };
 
 	// Check to see if we have the layer requirments
@@ -60,6 +60,7 @@ void Destroy()
 	);
 }
 
+// Check to see if a physical device has the required extention support
 bool HasRequiredExtentions(const VkPhysicalDevice& physical_device, const char** required_extentions, const uint32_t& required_extention_count)
 {
 	// Get all the extentions on device
@@ -105,6 +106,7 @@ bool HasRequiredExtentions(const VkPhysicalDevice& physical_device, const char**
 	return true;
 }
 
+// Find a queue family that has the required queue types
 bool GetQueueFamily(const VkPhysicalDevice& physical_device, VkQueueFlags required_queue_flags, uint32_t& queue_family_index)
 {
 	// Fist we need to get the amount of queue families on the system
@@ -167,7 +169,7 @@ int main(int argc, char **argv)
 	);
 
 	// Define what Device Extentions we require
-	const unsigned int extention_count = 1;
+	const uint32_t extention_count = 1;
 	// In this case we define that we will need 'VK_KHR_SWAPCHAIN_EXTENSION_NAME' This will be used in future tuturials but defines that
 	// We will require the mechanism that allows for images to be displayed on the display known as a swapchain.
 
@@ -178,6 +180,8 @@ int main(int argc, char **argv)
 	VkPhysicalDevice chosen_physical_device = VK_NULL_HANDLE;
 	uint32_t chosen_physical_devices_queue_family = 0;
 	VkPhysicalDeviceProperties chosen_physical_device_properties;
+	VkPhysicalDeviceFeatures chosen_physical_device_features;
+	VkPhysicalDeviceMemoryProperties chosen_physical_device_mem_properties;
 
 
 	// Now we have all the physical devices that are inside the device, we need to find a suitable one for our needs
@@ -203,6 +207,24 @@ int main(int argc, char **argv)
 					devices[i],
 					&physical_device_properties
 				);
+				// Find the features that are avaliable on the device
+				VkPhysicalDeviceFeatures physical_device_features;
+				vkGetPhysicalDeviceFeatures(
+					devices[i],
+					&physical_device_features
+				);
+
+				// Get all information about the devices memory
+				VkPhysicalDeviceMemoryProperties physical_device_mem_properties;
+				vkGetPhysicalDeviceMemoryProperties(
+					devices[i],
+					&physical_device_mem_properties
+				);
+
+
+				// Some further checks could be done in the future if you require a serten properties or features to be on the device
+				// ...
+
 
 				// First if the chosen device is null and the only GPU that reports back is a intergrated gpu then use it untill we find a deticated one
 				if (chosen_physical_device == VK_NULL_HANDLE || chosen_physical_device != VK_NULL_HANDLE && physical_device_properties.deviceType == VkPhysicalDeviceType::VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
@@ -210,6 +232,8 @@ int main(int argc, char **argv)
 					chosen_physical_device = devices[i];
 					chosen_physical_devices_queue_family = queue_family;
 					chosen_physical_device_properties = physical_device_properties;
+					chosen_physical_device_features = physical_device_features;
+					chosen_physical_device_mem_properties = physical_device_mem_properties;
 				}
 			}
 		}
@@ -217,6 +241,9 @@ int main(int argc, char **argv)
 
 	// Check to see if the device is valid
 	assert(chosen_physical_device != VK_NULL_HANDLE);
+
+
+
 
 
 
