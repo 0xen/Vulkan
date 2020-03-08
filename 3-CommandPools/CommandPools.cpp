@@ -18,6 +18,7 @@ VkPhysicalDeviceFeatures physical_device_features;
 VkPhysicalDeviceMemoryProperties physical_device_mem_properties;
 
 VkDevice device = VK_NULL_HANDLE;
+VkCommandPool command_pool;
 
 
 // Everything within the Setup is from previous tuturials
@@ -125,8 +126,21 @@ int main(int argc, char **argv)
 
 
 
+	VkCommandPoolCreateInfo pool_info = {};
+	pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	pool_info.queueFamilyIndex = physical_devices_queue_family;
+	pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
 
 
+	VkResult result = vkCreateCommandPool(
+		device,
+		&pool_info,
+		nullptr,
+		&command_pool
+	);
+
+	// Make sure the command pool was created sucsessfully
+	assert(result == VK_SUCCESS);
 
 
 
@@ -134,6 +148,11 @@ int main(int argc, char **argv)
 	///// Finished Creating the Command Pool ///// 
 	//////////////////////////////////////////////
 
+	vkDestroyCommandPool(
+		device,
+		command_pool,
+		nullptr
+	);
 
 	// Finish previous projects cleanups
 	Destroy();
