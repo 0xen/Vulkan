@@ -23,7 +23,7 @@ Find a device on the system that is compatible with our requirements for the sys
 ### [2 - Device](2-Device/)
 Upon finding the GPU that we want to use, we next create a Vulkan Device instance.
 
-### [3 - Command Pool](3-CommandPool/)
+### [3 - Command Pool](3-CommandPools/)
 Creating the mechanism that we will use to send messages to the GPU.
 
 ### [4 - Buffers](4-Buffers/)
