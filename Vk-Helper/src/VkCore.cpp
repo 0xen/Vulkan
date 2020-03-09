@@ -293,6 +293,8 @@ bool VkHelper::GetPhysicalDevice(const VkInstance& instance, VkPhysicalDevice & 
 					physical_device = devices[i];
 					queue_family_index = queue_family;
 					device_properties = physical_device_properties;
+					device_features = physical_device_features;
+					device_mem_properties = physical_device_mem_properties;
 				}
 			}
 		}
@@ -324,4 +326,24 @@ VkDevice VkHelper::CreateDevice(const VkPhysicalDevice & physical_device, VkDevi
 	// Was the vulkan device created sucsessfully
 	assert(result == VK_SUCCESS);
 	return device;
+}
+
+VkCommandPool VkHelper::CreateCommandPool(const VkDevice & device, const uint32_t & queue_family, VkCommandPoolCreateFlags flags)
+{
+	VkCommandPoolCreateInfo pool_info = VkHelper::CommandPoolCreateInfo(
+		queue_family,                                                    // What queue family we are wanting to use to send commands to the GPU
+		flags
+	);
+
+	VkCommandPool command_pool = VK_NULL_HANDLE;
+	// Create the command pool
+	VkResult result = vkCreateCommandPool(
+		device,
+		&pool_info,
+		nullptr,
+		&command_pool
+	);
+	// Was the vulkan command pool created sucsessfully
+	assert(result == VK_SUCCESS);
+	return command_pool;
 }

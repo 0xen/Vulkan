@@ -18,7 +18,6 @@ VkPhysicalDeviceFeatures physical_device_features;
 VkPhysicalDeviceMemoryProperties physical_device_mem_properties;
 
 VkDevice device = VK_NULL_HANDLE;
-VkCommandPool command_pool;
 
 
 // Everything within the Setup is from previous tuturials
@@ -26,6 +25,7 @@ VkCommandPool command_pool;
 // - Instance
 // - Debugger
 // - Physical Device
+// - Device
 void Setup()
 {
 	// Define what Layers and Extentions we require
@@ -96,6 +96,7 @@ void Setup()
 // Destroy
 // - Debugger
 // - Instance
+// - Device
 void Destroy()
 {
 
@@ -127,11 +128,13 @@ int main(int argc, char **argv)
 
 
 	VkCommandPoolCreateInfo pool_info = {};
-	pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	pool_info.queueFamilyIndex = physical_devices_queue_family;
-	pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+	pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;        // Create instance type we are creating
+	pool_info.queueFamilyIndex = physical_devices_queue_family;          // What queue family we are wanting to use to send commands to the GPU
+	pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;   // Allows any commands we create, the ability to be reset. This is helpfull as we wont need to
+	                                                                     // keep allocating new commands,we can reuse them
 
-
+	VkCommandPool command_pool;
+	// Create the command pool
 	VkResult result = vkCreateCommandPool(
 		device,
 		&pool_info,

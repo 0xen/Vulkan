@@ -47,3 +47,14 @@ VkDeviceCreateInfo VkHelper::DeviceCreateInfo(VkDeviceQueueCreateInfo * queue_in
 	info.ppEnabledExtensionNames = extensions;                  // What extentions do we want to enable
 	return info;
 }
+
+VkCommandPoolCreateInfo VkHelper::CommandPoolCreateInfo(const uint32_t & queue_family, VkCommandPoolCreateFlags flags)
+{
+
+	VkCommandPoolCreateInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;    // Create instance type we are creating
+	info.queueFamilyIndex = queue_family;                       // What queue family we are wanting to use to send commands to the GPU
+	info.flags = flags;                                         // Allows any commands we create, the ability to be reset. This is helpfull as we wont need to
+															    // keep allocating new commands,we can reuse them
+	return info;
+}

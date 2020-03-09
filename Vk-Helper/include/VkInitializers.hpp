@@ -12,4 +12,6 @@ namespace VkHelper
 
 	VkDeviceCreateInfo DeviceCreateInfo(VkDeviceQueueCreateInfo* queue_infos, uint32_t queue_count, VkPhysicalDeviceFeatures& physical_device_features,
 		const char** extensions, unsigned int extensions_count);
+
+	VkCommandPoolCreateInfo CommandPoolCreateInfo(const uint32_t& queue_family, VkCommandPoolCreateFlags flags);
 }
