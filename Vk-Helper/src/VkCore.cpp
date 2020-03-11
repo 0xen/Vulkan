@@ -347,3 +347,94 @@ VkCommandPool VkHelper::CreateCommandPool(const VkDevice & device, const uint32_
 	assert(result == VK_SUCCESS);
 	return command_pool;
 }
+
+uint32_t VkHelper::FindMemoryType(const VkPhysicalDeviceMemoryProperties& physical_device_mem_properties,uint32_t type_filter, VkMemoryPropertyFlags properties)
+{
+	// Loop through all memory types on the gpu
+	for (uint32_t i = 0; physical_device_mem_properties.memoryTypeCount; i++)
+	{
+		// if we find a memory type that matches our type filter and the type has the required properties
+		if (type_filter & (1 << i) && (physical_device_mem_properties.memoryTypes[i].propertyFlags & properties) == properties)
+		{
+			return i;
+		}
+	}
+	assert(0 && "No available memory properties");
+	return -1;
+}
+
+bool VkHelper::CreateBuffer(const VkDevice& device, const VkPhysicalDeviceMemoryProperties& physical_device_mem_properties, VkBuffer & buffer, VkDeviceMemory & buffer_memory, VkDeviceSize size, VkBufferUsageFlags usage, VkSharingMode sharing_mode, VkMemoryPropertyFlags buffer_memory_properties)
+{
+
+
+	VkBufferCreateInfo buffer_info = VkHelper::BufferCreateInfo(
+		size,                                                            // How big do we want to buffer to be
+		usage,                                                           // What type of buffer do we want. Buffers can have multiple types, for example, uniform & vertex buffer.
+																		 // for now we want to keep the buffer spetilised to one type as this will allow vulkan to optimize the data.
+		sharing_mode                                                     // There are two modes, exclusive and concurrent. Defines if it can concurrently be used by multiple queue
+																		 // families at the same time
+	);
+
+
+	// Next we create the buffer. Even though we told the buffer how much data we want to use with it, it dose not actualy create the data yet, this is because we can move data
+	// between buffers at any time by rebinding them. You will see this process later when we first bind some data to this buffer
+	VkResult buffer_result = vkCreateBuffer(
+		device,                                                          // What device are we going to use to create the buffer
+		&buffer_info,                                                    // What create info are we going to use to base the new buffer on
+		nullptr,                                                         // ...
+		&buffer                                                          // What buffer are we going to create to
+	);
+
+	// Make sure the buffer was created sucsessfully
+	assert(buffer_result == VK_SUCCESS);
+
+
+	// Find out what the memory requirments of the buffer are
+	VkMemoryRequirements buffer_memory_requirements;
+	vkGetBufferMemoryRequirements(
+		device,                                                          // What device we are using to find the buffer requirments
+		buffer,                                                          // What buffer we are getting the requirments for
+		&buffer_memory_requirements                                      // Where are we wrighting the requirments too
+	);
+
+
+	// Next we need to find the type of memory required for this buffer
+	uint32_t memory_type = FindMemoryType(
+		physical_device_mem_properties,                                 // Properties describing the memory avaliable on the GPU
+		buffer_memory_requirements.memoryTypeBits,                      // What memory type vulkan has told us we need
+		buffer_memory_properties                                        // What properties do we rquire of our memory
+	);
+
+
+	VkMemoryAllocateInfo memory_allocate_info = VkHelper::MemroyAllocateInfo(
+		size,                                                           // How much memory we wish to allocate on the GPU
+		memory_type                                                     // What tyoe if memory we want to allocate
+	);
+
+	// Now we have defines what type of memory we want to allocate and how much of it, we allocate it.
+	VkResult memory_allocation_result = vkAllocateMemory(
+		device,                                                         // What device we want to allocate the memory on
+		&memory_allocate_info,                                          // The allocate info for memory allocation
+		nullptr,                                                        // ...
+		&buffer_memory                                                  // The output for the buffer memory
+	);
+
+	// Could we allocate the new memory
+	assert(memory_allocation_result == VK_SUCCESS);
+
+	// Now we have the buffer and the memory, we need to bind them together.
+	// The bind buffer memory has a offset value, this value is used when we allocate a large amount of memory, but want to split it
+	// between multiple buffers, we can tell it now how far from the memory start we want the buffer to start from
+	VkResult bind_buffer_memory = vkBindBufferMemory(
+		device,                                                         // What device the memory and buffer are on
+		buffer,                                                         // What buffer we want to bind
+		buffer_memory,                                                  // What memory we want to beind to the buffer
+		0                                                               // The start offset from the beginning of the allocated memory
+	);
+
+
+	// Could we bind the new memory to the buffer
+	assert(bind_buffer_memory == VK_SUCCESS);
+
+	return true;
+}

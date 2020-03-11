@@ -30,4 +30,11 @@ namespace VkHelper
 		const char** extensions, unsigned int extensions_count);
 
 	VkCommandPool CreateCommandPool(const VkDevice& device, const uint32_t& queue_family, VkCommandPoolCreateFlags flags);
+
+	uint32_t FindMemoryType(const VkPhysicalDeviceMemoryProperties& physical_device_mem_properties, uint32_t type_filter, VkMemoryPropertyFlags properties);
+
+	bool CreateBuffer(const VkDevice& device, const VkPhysicalDeviceMemoryProperties& physical_device_mem_properties, VkBuffer& buffer, VkDeviceMemory& buffer_memory,
+		VkDeviceSize size, VkBufferUsageFlags usage, VkSharingMode sharing_mode, VkMemoryPropertyFlags buffer_memory_properties);
+
+	
 }

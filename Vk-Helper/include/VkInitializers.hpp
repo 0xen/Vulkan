@@ -14,4 +14,10 @@ namespace VkHelper
 		const char** extensions, unsigned int extensions_count);
 
 	VkCommandPoolCreateInfo CommandPoolCreateInfo(const uint32_t& queue_family, VkCommandPoolCreateFlags flags);
+
+	VkBufferCreateInfo BufferCreateInfo(VkDeviceSize size, VkBufferUsageFlags usage, VkSharingMode sharing_mode);
+
+	VkMemoryAllocateInfo MemroyAllocateInfo(VkDeviceSize size, uint32_t memory_type);
+
+
 }

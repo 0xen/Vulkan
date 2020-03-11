@@ -58,3 +58,24 @@ VkCommandPoolCreateInfo VkHelper::CommandPoolCreateInfo(const uint32_t & queue_f
 															    // keep allocating new commands,we can reuse them
 	return info;
 }
+
+VkBufferCreateInfo VkHelper::BufferCreateInfo(VkDeviceSize size, VkBufferUsageFlags usage, VkSharingMode sharing_mode)
+{
+	VkBufferCreateInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;          // Define the create info type
+	info.size = size;                                           // How big do we want to buffer to be
+	info.usage = usage;                                         // What type of buffer do we want. Buffers can have multiple types, for example, uniform & vertex buffer.
+													            // for now we want to keep the buffer spetilised to one type as this will allow vulkan to optimize the data.
+	info.sharingMode = sharing_mode;                            // There are two modes, exclusive and concurrent. Defines if it can concurrently be used by multiple queue
+														        // families at the same time
+	return info;
+}
+
+VkMemoryAllocateInfo VkHelper::MemroyAllocateInfo(VkDeviceSize size, uint32_t memory_type)
+{
+	VkMemoryAllocateInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;        // Allocate info type of the 
+	info.allocationSize = size;                                 // How much memory we wish to allocate on the GPU
+	info.memoryTypeIndex = memory_type;                         // What tyoe if memory we want to allocate
+	return info;
+}
