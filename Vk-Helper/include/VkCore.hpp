@@ -36,5 +36,5 @@ namespace VkHelper
 	bool CreateBuffer(const VkDevice& device, const VkPhysicalDeviceMemoryProperties& physical_device_mem_properties, VkBuffer& buffer, VkDeviceMemory& buffer_memory,
 		VkDeviceSize size, VkBufferUsageFlags usage, VkSharingMode sharing_mode, VkMemoryPropertyFlags buffer_memory_properties);
 
-	
+	//void CreateDescriptorPool(const VkDevice& device, );
 }

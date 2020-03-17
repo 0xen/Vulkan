@@ -231,9 +231,113 @@ int main(int argc, char **argv)
 	Setup();
 
 
-	
+	VkDescriptorPool descriptor_pool;
+	VkDescriptorSetLayout descriptor_set_layout;
+	VkDescriptorSet descriptor_set;
+	VkWriteDescriptorSet descriptor_write_set;
+
+	{ // Create Descriptor Pool
+		VkDescriptorPoolSize pool_size = {};
+		pool_size.type = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		pool_size.descriptorCount = 1;
+
+		VkDescriptorPoolCreateInfo create_info = {};
+		create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+		create_info.poolSizeCount = 1;
+		create_info.pPoolSizes = &pool_size;
+		create_info.maxSets = 100;
+
+		VkResult create_descriptor_pool = vkCreateDescriptorPool(
+			device,
+			&create_info,
+			nullptr,
+			&descriptor_pool
+		);
 
 
+		assert(create_descriptor_pool == VK_SUCCESS);
+	}
+
+	{ // Create Descriptor Pool layout
+		VkDescriptorSetLayoutBinding layout_bindings = {};
+		layout_bindings.binding = 0;
+		layout_bindings.descriptorType = VkDescriptorType::VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		layout_bindings.descriptorCount = 1;
+		layout_bindings.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+
+		VkDescriptorSetLayoutCreateInfo layout_info = {};
+		layout_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+		layout_info.bindingCount = 1;
+		layout_info.pBindings = &layout_bindings;
+
+
+		VkResult create_descriptor_set_layout = vkCreateDescriptorSetLayout(
+			device,
+			&layout_info,
+			nullptr,
+			&descriptor_set_layout
+		);
+
+		assert(create_descriptor_set_layout == VK_SUCCESS);
+	}
+
+	// Create descriptor set from descriptor pool
+	{
+		VkDescriptorSetAllocateInfo alloc_info = {};
+		alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+		alloc_info.descriptorPool = descriptor_pool;
+		alloc_info.descriptorSetCount = 1;
+		alloc_info.pSetLayouts = &descriptor_set_layout;
+
+		VkResult create_descriptor_set = vkAllocateDescriptorSets(
+			device,
+			&alloc_info,
+			&descriptor_set
+		);
+
+		assert(create_descriptor_set == VK_SUCCESS);
+	}
+
+
+	{ // Update the Descriptor Set
+		VkDescriptorBufferInfo buffer_info = {};
+		buffer_info.buffer = buffer;
+		buffer_info.offset = 0;
+		buffer_info.range = buffer_size;
+
+		descriptor_write_set = {};
+		descriptor_write_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptor_write_set.dstSet = descriptor_set;
+		descriptor_write_set.dstBinding = 0;
+		descriptor_write_set.dstArrayElement = 0;
+		descriptor_write_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		descriptor_write_set.descriptorCount = 1;
+		descriptor_write_set.pBufferInfo = &buffer_info;
+
+		vkUpdateDescriptorSets(device,
+			1, // Passing over 1 buffer
+			&descriptor_write_set,
+			0, 
+			NULL
+		);
+	}
+
+
+
+
+
+
+	vkDestroyDescriptorSetLayout(
+		device,
+		descriptor_set_layout,
+		nullptr
+	);
+	vkDestroyDescriptorPool(
+		device,
+		descriptor_pool,
+		nullptr
+	);
 
 
 	// Finish previous projects cleanups
