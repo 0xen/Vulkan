@@ -31,7 +31,10 @@ function(add_subdirectory_with_folder _folder_name _folder)
 endfunction()
 
 
-#add_subdirectory_with_folder("Third Party/libjpeg-master" third_party/libjpeg-master)
+add_subdirectory_with_folder("Third Party/SDL2" third_party/SDL2)
+
+
+include_directories(third_party/SDL2/include)
 
 add_subdirectory("Vk-Helper")
 add_subdirectory("0-Instance")
@@ -40,3 +43,6 @@ add_subdirectory("2-Device")
 add_subdirectory("3-CommandPools")
 add_subdirectory("4-Buffers")
 add_subdirectory("5-Descriptors")
+add_subdirectory("6-Swapchain")
+add_subdirectory("7-Renderpass")
+add_subdirectory("8-Present")

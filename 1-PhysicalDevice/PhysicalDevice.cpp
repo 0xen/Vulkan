@@ -136,6 +136,24 @@ bool GetQueueFamily(const VkPhysicalDevice& physical_device, VkQueueFlags requir
 			// Using bitwise AND check that the queue flags are set
 			if ((queue_families[i].queueFlags & required_queue_flags) == required_queue_flags)
 			{
+
+				// Later on in tuturial 6-Swapchain, we introduce the consept of a surface that we render too.
+				// The surface is the display and we want to make sure that the queue family supports rendering to
+				// the surface. A inplemented example can be seen in VkCore.cpp but here is the validation code needed later
+				// when we have added surfaces
+
+				/*VkBool32 present_support = false;
+				vkGetPhysicalDeviceSurfaceSupportKHR(
+					physical_device,
+					i,
+					surface,
+					&present_support
+				);
+				if (present_support)
+				{
+					queue_family_index = i;
+					return true;
+				}*/
 				queue_family_index = i;
 				return true;
 			}

@@ -79,3 +79,143 @@ VkMemoryAllocateInfo VkHelper::MemroyAllocateInfo(VkDeviceSize size, uint32_t me
 	info.memoryTypeIndex = memory_type;                         // What tyoe if memory we want to allocate
 	return info;
 }
+
+VkDescriptorPoolSize VkHelper::DescriptorPoolSize(VkDescriptorType type, uint32_t descriptorCount)
+{
+	VkDescriptorPoolSize info = {};
+	info.type = type;
+	info.descriptorCount = descriptorCount;
+	return info;
+}
+
+VkDescriptorPoolCreateInfo VkHelper::DescriptorPoolCreateInfo(const VkDescriptorPoolSize * sizes, uint32_t size_count, uint32_t max_sets)
+{
+	VkDescriptorPoolCreateInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	info.poolSizeCount = size_count;
+	info.pPoolSizes = sizes;
+	info.maxSets = max_sets;
+	return info;
+}
+
+VkDescriptorSetLayoutBinding VkHelper::DescriptorSetLayoutBinding(uint32_t binding, VkDescriptorType type, uint32_t descriptor_count, VkShaderStageFlags stage_flags)
+{
+	VkDescriptorSetLayoutBinding info = {};
+	info.binding = binding;
+	info.descriptorType = type;
+	info.descriptorCount = descriptor_count;
+	info.stageFlags = stage_flags;
+	return info;
+}
+
+VkDescriptorSetLayoutCreateInfo VkHelper::DescriptorSetLayoutCreateInfo(const VkDescriptorSetLayoutBinding * bindings, uint32_t binding_count)
+{
+	VkDescriptorSetLayoutCreateInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	info.bindingCount = binding_count;
+	info.pBindings = bindings;
+	return info;
+}
+
+VkDescriptorSetAllocateInfo VkHelper::DescriptorSetAllocateInfo(VkDescriptorPool descriptor_pool, const VkDescriptorSetLayout * set_layouts, uint32_t descriptor_set_count)
+{
+	VkDescriptorSetAllocateInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	info.descriptorPool = descriptor_pool;
+	info.descriptorSetCount = descriptor_set_count;
+	info.pSetLayouts = set_layouts;
+	return info;
+}
+
+VkCommandBufferAllocateInfo VkHelper::CommandBufferAllocateInfo(VkCommandPool pool, uint32_t command_buffer_count)
+{
+	VkCommandBufferAllocateInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	info.commandPool = pool;
+	info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	info.commandBufferCount = command_buffer_count;
+	return info;
+}
+
+VkCommandBufferBeginInfo VkHelper::CommandBufferBeginInfo(VkCommandBufferUsageFlags flag)
+{
+	VkCommandBufferBeginInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	info.flags = flag;
+	info.pInheritanceInfo = nullptr;
+	return info;
+}
+
+VkSubmitInfo VkHelper::SubmitInfo(VkCommandBuffer & buffer)
+{
+	VkSubmitInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	info.commandBufferCount = 1;
+	info.pCommandBuffers = &buffer;
+	return info;
+}
+
+VkImageMemoryBarrier VkHelper::ImageMemoryBarrier()
+{
+	VkImageMemoryBarrier image_memory_barrier{};
+	image_memory_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	image_memory_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	image_memory_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	return image_memory_barrier;
+}
+
+bool HasStencilComponent(VkFormat format)
+{
+	return format == VK_FORMAT_D32_SFLOAT_S8_UINT || format == VK_FORMAT_D24_UNORM_S8_UINT;
+}
+
+VkImageMemoryBarrier VkHelper::ImageMemoryBarrier(VkImage & image, VkFormat & format, VkImageLayout & old_layout, VkImageLayout & new_layout)
+{
+	VkImageMemoryBarrier barrier = ImageMemoryBarrier();
+	barrier.oldLayout = old_layout;
+	barrier.newLayout = new_layout;
+	barrier.image = image;
+	if (new_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+	{
+		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
+
+		if (format != VK_FORMAT_UNDEFINED && HasStencilComponent(format))
+		{
+			barrier.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+		}
+	}
+	else
+	{
+		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	}
+	barrier.subresourceRange.baseMipLevel = 0;
+	barrier.subresourceRange.levelCount = 1;
+	barrier.subresourceRange.baseArrayLayer = 0;
+	barrier.subresourceRange.layerCount = 1;
+
+	if (old_layout == VK_IMAGE_LAYOUT_PREINITIALIZED && new_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+	{
+		barrier.srcAccessMask = VK_ACCESS_HOST_WRITE_BIT;
+		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	}
+	else if (old_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && new_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+	{
+		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+	}
+	else if (old_layout == VK_IMAGE_LAYOUT_UNDEFINED && new_layout == VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL)
+	{
+		barrier.srcAccessMask = 0;
+		barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_READ_BIT | VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
+	}
+	else if (old_layout == VK_IMAGE_LAYOUT_UNDEFINED && new_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+	{
+		barrier.srcAccessMask = 0;
+		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+	}
+	else if (old_layout == VK_IMAGE_LAYOUT_UNDEFINED && new_layout == VK_IMAGE_LAYOUT_GENERAL)
+	{
+		barrier.srcAccessMask = 0;
+	}
+	return barrier;
+}

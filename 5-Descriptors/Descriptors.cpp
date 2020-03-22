@@ -210,21 +210,6 @@ void Destroy()
 }
 
 
-uint32_t FindMemoryType(uint32_t type_filter, VkMemoryPropertyFlags properties)
-{
-	// Loop through all memory types on the gpu
-	for (uint32_t i = 0; physical_device_mem_properties.memoryTypeCount; i++)
-	{
-		// if we find a memory type that matches our type filter and the type has the required properties
-		if (type_filter & (1 << i) && (physical_device_mem_properties.memoryTypes[i].propertyFlags & properties) == properties)
-		{
-			return i;
-		}
-	}
-	assert(0 && "No available memory properties");
-	return -1;
-}
-
 int main(int argc, char **argv)
 {
 	// Setup the components from the previous projects
