@@ -642,6 +642,9 @@ int main(int argc, char **argv)
 
 
 
+
+
+
 		// To do
 
 
@@ -744,26 +747,7 @@ int main(int argc, char **argv)
 
 
 
-	vkDestroySemaphore(
-		device,
-		image_available_semaphore,
-		nullptr
-	);
 
-	vkDestroySemaphore(
-		device,
-		render_finished_semaphore,
-		nullptr
-	);
-
-	for (unsigned int i = 0; i < swapchain_image_count; i++)
-	{
-		vkDestroyFence(
-			device,
-			fences.get()[i],
-			nullptr
-		);
-	}
 
 
 
