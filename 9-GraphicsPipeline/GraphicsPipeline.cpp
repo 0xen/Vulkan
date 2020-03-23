@@ -34,6 +34,10 @@ uint32_t indicies[3] = {
 VkDeviceSize vertex_buffer_size = sizeof(VertexData) * 3;
 VkDeviceSize index_buffer_size = sizeof(uint32_t) * 3;
 
+void CreateRenderResources();
+void DestroyRenderResources();
+void RebuildRenderResources();
+void BuildCommandBuffers(std::unique_ptr<VkCommandBuffer>& command_buffers, const uint32_t buffer_count);
 
 VkInstance instance;
 VkDebugReportCallbackEXT debugger;
@@ -81,7 +85,7 @@ VkSubmitInfo sumbit_info = {};
 VkPresentInfoKHR present_info = {};
 VkPipelineStageFlags wait_stages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
-std::unique_ptr<VkCommandBuffer> command_buffers = nullptr;
+std::unique_ptr<VkCommandBuffer> graphics_command_buffers = nullptr;
 
 
 VkPipeline graphics_pipeline = VK_NULL_HANDLE;
@@ -140,8 +144,8 @@ void PollWindow()
 				//Get new dimensions and repaint on window size change
 			case SDL_WINDOWEVENT_SIZE_CHANGED:
 
-				Sint32 width = event.window.data1;
-				Sint32 height = event.window.data2;
+				window_width = event.window.data1;
+				window_height = event.window.data2;
 
 				break;
 			}
@@ -274,39 +278,7 @@ void Setup()
 	);                                                         // keep allocating new commands, we can reuse them
 
 
-	swap_chain = VkHelper::CreateSwapchain(
-		physical_device,
-		device,
-		surface,
-		surface_capabilities,
-		surface_format,
-		present_mode,
-		window_width,
-		window_height,
-		swapchain_image_count,
-		swapchain_images,
-		swapchain_image_views
-	);
-
-
-	const VkFormat colorFormat = VK_FORMAT_R8G8B8A8_UNORM;
-	renderpass = VkHelper::CreateRenderPass(
-		physical_device,
-		device,
-		surface_format.format,
-		colorFormat,
-		swapchain_image_count,
-		physical_device_mem_properties,
-		physical_device_features,
-		physical_device_properties,
-		command_pool,
-		graphics_queue,
-		window_width,
-		window_height,
-		framebuffers,
-		framebuffer_attachments,
-		swapchain_image_views
-	);
+	CreateRenderResources();
 
 	fences = std::unique_ptr<VkFence>(new VkFence[swapchain_image_count]);
 
@@ -348,12 +320,12 @@ void Setup()
 		swapchain_image_count
 	);
 
-	command_buffers = std::unique_ptr<VkCommandBuffer>(new VkCommandBuffer[swapchain_image_count]);
+	graphics_command_buffers = std::unique_ptr<VkCommandBuffer>(new VkCommandBuffer[swapchain_image_count]);
 
 	VkResult allocate_command_buffer_resut = vkAllocateCommandBuffers(
 		device,
 		&command_buffer_allocate_info,
-		command_buffers.get()
+		graphics_command_buffers.get()
 	);
 	assert(allocate_command_buffer_resut == VK_SUCCESS);
 
@@ -369,6 +341,8 @@ void Setup()
 	present_info.waitSemaphoreCount = 1;
 	present_info.pWaitSemaphores = &render_finished_semaphore;
 	present_info.swapchainCount = 1;
+	// The swapchain will be recreated whenevr the window is resized or the KHR becomes invalid
+	// But the pointer to our swapchain will remain intact
 	present_info.pSwapchains = &swap_chain;
 	present_info.pResults = nullptr;
 
@@ -383,6 +357,16 @@ void Setup()
 // - Instance
 void Destroy()
 {
+	DestroyRenderResources();
+
+	for (uint32_t i = 0; i < swapchain_image_count; i++)
+	{
+		vkDestroyFence(
+			device,
+			fences.get()[i],
+			nullptr
+		);
+	}
 
 	vkDestroySemaphore(
 		device,
@@ -396,13 +380,97 @@ void Destroy()
 		nullptr
 	);
 
-	for (unsigned int i = 0; i < swapchain_image_count; i++)
+
+	// Clean up the command pool
+	vkDestroyCommandPool(
+		device,
+		command_pool,
+		nullptr
+	);
+
+	// Clean up the device now that the project is stopping
+	vkDestroyDevice(
+		device,
+		nullptr
+	);
+
+	// Destroy the debug callback
+	// We cant directly call vkDestroyDebugReportCallbackEXT as we need to find the pointer within the Vulkan DLL, See function inplmentation for details.
+	VkHelper::DestroyDebugger(
+		instance, 
+		debugger
+	);
+
+	// Clean up the vulkan instance
+	vkDestroyInstance(
+		instance,
+		NULL
+	);
+
+	DestroyWindow();
+}
+
+
+void CreateRenderResources()
+{
+	swap_chain = VkHelper::CreateSwapchain(
+		physical_device,
+		device,
+		surface,
+		surface_capabilities,
+		surface_format,
+		present_mode,
+		window_width,
+		window_height,
+		swapchain_image_count,
+		swapchain_images,
+		swapchain_image_views
+	);
+
+
+	const VkFormat colorFormat = VK_FORMAT_R8G8B8A8_UNORM;
+	renderpass = VkHelper::CreateRenderPass(
+		physical_device,
+		device,
+		surface_format.format,
+		colorFormat,
+		swapchain_image_count,
+		physical_device_mem_properties,
+		physical_device_features,
+		physical_device_properties,
+		command_pool,
+		graphics_queue,
+		window_width,
+		window_height,
+		framebuffers,
+		framebuffer_attachments,
+		swapchain_image_views
+	);
+}
+
+void DestroyRenderResources()
+{
+
+	vkDestroyRenderPass(
+		device,
+		renderpass,
+		nullptr
+	);
+
+	vkDestroySwapchainKHR(
+		device,
+		swap_chain,
+		nullptr
+	);
+
+	for (uint32_t i = 0; i < swapchain_image_count; i++)
 	{
-		vkDestroyFence(
+		vkDestroyImageView(
 			device,
-			fences.get()[i],
+			swapchain_image_views.get()[i],
 			nullptr
 		);
+
 
 		vkDestroyFramebuffer(
 			device,
@@ -451,58 +519,21 @@ void Destroy()
 			nullptr
 		);
 	}
-
-	vkDestroyRenderPass(
-		device,
-		renderpass,
-		nullptr
-	);
-
-	for (uint32_t i = 0; i < swapchain_image_count; i++)
-	{
-		vkDestroyImageView(
-			device,
-			swapchain_image_views.get()[i],
-			nullptr
-		);
-	}
-
-	vkDestroySwapchainKHR(
-		device,
-		swap_chain,
-		nullptr
-	);
-
-	// Clean up the command pool
-	vkDestroyCommandPool(
-		device,
-		command_pool,
-		nullptr
-	);
-
-	// Clean up the device now that the project is stopping
-	vkDestroyDevice(
-		device,
-		nullptr
-	);
-
-	// Destroy the debug callback
-	// We cant directly call vkDestroyDebugReportCallbackEXT as we need to find the pointer within the Vulkan DLL, See function inplmentation for details.
-	VkHelper::DestroyDebugger(
-		instance, 
-		debugger
-	);
-
-	// Clean up the vulkan instance
-	vkDestroyInstance(
-		instance,
-		NULL
-	);
-
-	DestroyWindow();
 }
 
-void SetupCommandBuffers()
+
+void RebuildRenderResources()
+{
+	VkResult device_idle_result = vkDeviceWaitIdle(device);
+	assert(device_idle_result == VK_SUCCESS);
+
+	DestroyRenderResources();
+	CreateRenderResources();
+	BuildCommandBuffers(graphics_command_buffers, swapchain_image_count);
+}
+
+
+void BuildCommandBuffers(std::unique_ptr<VkCommandBuffer>& command_buffers, const uint32_t buffer_count)
 {
 	VkCommandBufferBeginInfo command_buffer_begin_info = VkHelper::CommandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT);
 
@@ -526,7 +557,7 @@ void SetupCommandBuffers()
 
 	VkImageSubresourceRange subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
 
-	for (unsigned int i = 0; i < swapchain_image_count; i++)
+	for (unsigned int i = 0; i < buffer_count; i++)
 	{
 		// Reset the command buffers
 		VkResult reset_command_buffer_result = vkResetCommandBuffer(
@@ -672,7 +703,7 @@ void Render()
 	);
 	assert(reset_fences_result == VK_SUCCESS);
 
-	sumbit_info.pCommandBuffers = &command_buffers.get()[current_frame_index];
+	sumbit_info.pCommandBuffers = &graphics_command_buffers.get()[current_frame_index];
 
 	VkResult queue_submit_result = vkQueueSubmit(
 		graphics_queue,
@@ -688,7 +719,15 @@ void Render()
 		present_queue,
 		&present_info
 	);
-	assert(queue_present_result == VK_SUCCESS);
+	// If the window was resized or something else made the current render invalid, we need to rebuild all the
+	// render resources
+	if (queue_present_result == VK_ERROR_OUT_OF_DATE_KHR)
+	{
+		RebuildRenderResources();
+	}
+
+	assert(queue_present_result == VK_SUCCESS || queue_present_result == VK_ERROR_OUT_OF_DATE_KHR);
+
 
 	VkResult device_idle_result = vkDeviceWaitIdle(device);
 	assert(device_idle_result == VK_SUCCESS);
@@ -1013,9 +1052,8 @@ int main(int argc, char **argv)
 
 
 
+	BuildCommandBuffers(graphics_command_buffers, swapchain_image_count);
 
-
-	SetupCommandBuffers();
 
 	while (window_open)
 	{

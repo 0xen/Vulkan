@@ -55,10 +55,9 @@ std::unique_ptr<VkHelper::VulkanAttachments> framebuffer_attachments = nullptr;
 
 
 VkPipelineStageFlags wait_stages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-VkSwapchainKHR swap_chains[1];// Will store the newly created swapchain in it;
 VkPresentInfoKHR present_info = {};
 VkSubmitInfo sumbit_info = {};
-std::unique_ptr<VkCommandBuffer> command_buffers = nullptr;
+std::unique_ptr<VkCommandBuffer> graphics_command_buffers = nullptr;
 
 
 void WindowSetup(const char* title, int width, int height)
@@ -314,7 +313,6 @@ void CreateRenderResources()
 		framebuffer_attachments,
 		swapchain_image_views
 	);
-	swap_chains[0] = swap_chain;
 
 	sumbit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	sumbit_info.waitSemaphoreCount = 1;
@@ -326,7 +324,7 @@ void CreateRenderResources()
 	present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
 	present_info.waitSemaphoreCount = 1;
 	present_info.swapchainCount = 1;
-	present_info.pSwapchains = swap_chains;
+	present_info.pSwapchains = &swap_chain;
 	present_info.pResults = nullptr;
 
 	// All three semaphores are defined in the main as they are a part of the tuturial on how to create them
@@ -415,7 +413,7 @@ void RebuildRenderResources()
 
 	DestroyRenderResources();
 	CreateRenderResources();
-	BuildCommandBuffers(command_buffers, swapchain_image_count);
+	BuildCommandBuffers(graphics_command_buffers, swapchain_image_count);
 }
 
 
@@ -566,7 +564,7 @@ int main(int argc, char **argv)
 	assert(create_semaphore_result == VK_SUCCESS);
 
 
-	command_buffers = std::unique_ptr<VkCommandBuffer>(new VkCommandBuffer[swapchain_image_count]);
+	graphics_command_buffers = std::unique_ptr<VkCommandBuffer>(new VkCommandBuffer[swapchain_image_count]);
 	
 	VkCommandBufferAllocateInfo command_buffer_allocate_info = VkHelper::CommandBufferAllocateInfo(
 		command_pool,
@@ -576,13 +574,13 @@ int main(int argc, char **argv)
 	VkResult allocate_command_buffer_resut = vkAllocateCommandBuffers(
 		device,
 		&command_buffer_allocate_info,
-		command_buffers.get()
+		graphics_command_buffers.get()
 	);
 	assert(allocate_command_buffer_resut == VK_SUCCESS);
 	
 
 
-	BuildCommandBuffers(command_buffers, swapchain_image_count);
+	BuildCommandBuffers(graphics_command_buffers, swapchain_image_count);
 
 	// sumbit_info and present_info are defined within CreateRenderResources as they need to get the
 	// newly created swapchain instance
@@ -633,7 +631,7 @@ int main(int argc, char **argv)
 
 
 
-		sumbit_info.pCommandBuffers = &command_buffers.get()[current_frame_index];
+		sumbit_info.pCommandBuffers = &graphics_command_buffers.get()[current_frame_index];
 
 		VkResult queue_submit_result = vkQueueSubmit(
 			graphics_queue,
@@ -652,7 +650,8 @@ int main(int argc, char **argv)
 			present_queue,
 			&present_info
 		);
-
+		// If the window was resized or something else made the current render invalid, we need to rebuild all the
+		// render resources
 		if (queue_present_result == VK_ERROR_OUT_OF_DATE_KHR)
 		{
 			RebuildRenderResources();
