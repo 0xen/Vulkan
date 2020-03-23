@@ -12,6 +12,11 @@
 #include <VkInitializers.hpp>
 #include <VkCore.hpp>
 
+void CreateRenderResources();
+void DestroyRenderResources();
+void RebuildRenderResources();
+void BuildCommandBuffers(std::unique_ptr<VkCommandBuffer>& command_buffers, const uint32_t buffer_count);
+
 VkInstance instance;
 VkDebugReportCallbackEXT debugger;
 VkPhysicalDevice physical_device = VK_NULL_HANDLE;
@@ -27,23 +32,6 @@ VkQueue graphics_queue = VK_NULL_HANDLE;
 VkQueue present_queue = VK_NULL_HANDLE;
 VkCommandPool command_pool;
 
-const unsigned int buffer_array_length = 64;
-// Create a array of data to store on the GPU
-unsigned int example_input_buffer_data[buffer_array_length];
-
-// Next we need to define how many bytes of data we want to reserve on the GPU
-VkDeviceSize buffer_size = sizeof(unsigned int) * buffer_array_length;
-// Create a storage variable for the buffer and buffer memory
-VkBuffer buffer = VK_NULL_HANDLE;
-VkDeviceMemory buffer_memory = VK_NULL_HANDLE;
-// Raw pointer that will point to GPU memory
-void* mapped_buffer_memory = nullptr;
-
-
-VkDescriptorPool descriptor_pool;
-VkDescriptorSetLayout descriptor_set_layout;
-VkDescriptorSet descriptor_set;
-VkWriteDescriptorSet descriptor_write_set;
 
 bool window_open;
 SDL_Window* window;
@@ -63,7 +51,14 @@ std::unique_ptr<VkImageView> swapchain_image_views;
 
 VkRenderPass renderpass = VK_NULL_HANDLE;
 std::unique_ptr<VkFramebuffer> framebuffers = nullptr;
-std::unique_ptr<VkHelper::VulkanAttachments> framebuffer_attachments = nullptr;
+std::unique_ptr<VkHelper::VulkanAttachments> framebuffer_attachments = nullptr; 
+
+
+VkPipelineStageFlags wait_stages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+VkSwapchainKHR swap_chains[1];// Will store the newly created swapchain in it;
+VkPresentInfoKHR present_info = {};
+VkSubmitInfo sumbit_info = {};
+std::unique_ptr<VkCommandBuffer> command_buffers = nullptr;
 
 
 void WindowSetup(const char* title, int width, int height)
@@ -103,10 +98,8 @@ void PollWindow()
 			{
 				//Get new dimensions and repaint on window size change
 			case SDL_WINDOWEVENT_SIZE_CHANGED:
-
-				Sint32 width = event.window.data1;
-				Sint32 height = event.window.data2;
-
+				window_width = event.window.data1;
+				window_height = event.window.data2;
 				break;
 			}
 			break;
@@ -238,83 +231,55 @@ void Setup()
 	);                                                         // keep allocating new commands, we can reuse them
 
 
+	CreateRenderResources();
 
+}
 
-	// Initalize the array that we will pass to the GPU
-	for (unsigned int i = 0; i < buffer_array_length; i++)
-		example_input_buffer_data[i] = i; // Init the array with some basic data
+// Everything within the Destroy is from previous tuturials
+// Destroy
+// - Buffer
+// - Command Pool
+// - Device
+// - Debugger
+// - Instance
+void Destroy()
+{
 
-	bool buffer_created = VkHelper::CreateBuffer(
-		device,                                                          // What device are we going to use to create the buffer
-		physical_device_mem_properties,                                  // What memory properties are avaliable on the device
-		buffer,                                                          // What buffer are we going to be creating
-		buffer_memory,                                                   // The output for the buffer memory
-		buffer_size,                                                     // How much memory we wish to allocate on the GPU
-		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,                              // What type of buffer do we want. Buffers can have multiple types, for example, uniform & vertex buffer.
-																		 // for now we want to keep the buffer spetilised to one type as this will allow vulkan to optimize the data.
-		VK_SHARING_MODE_EXCLUSIVE,                                       // There are two modes, exclusive and concurrent. Defines if it can concurrently be used by multiple queue
-																		 // families at the same time
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT                              // What properties do we rquire of our memory
+	DestroyRenderResources();
+
+	// Clean up the command pool
+	vkDestroyCommandPool(
+		device,
+		command_pool,
+		nullptr
 	);
 
-	// Get the pointer to the GPU memory
-	VkResult mapped_memory_result = vkMapMemory(
-		device,                                                         // The device that the memory is on
-		buffer_memory,                                                  // The device memory instance
-		0,                                                              // Offset from the memorys start that we are accessing
-		buffer_size,                                                    // How much memory are we accessing
-		0,                                                              // Flags (we dont need this for basic buffers)
-		&mapped_buffer_memory                                           // The return for the memory pointer
+	// Clean up the device now that the project is stopping
+	vkDestroyDevice(
+		device,
+		nullptr
 	);
 
-	// Could we map the GPU memory to our CPU accessable pointer
-	assert(mapped_memory_result == VK_SUCCESS);
-
-	// First we copy the example data to the GPU
-	memcpy(
-		mapped_buffer_memory,                                           // The destination for our memory (GPU)
-		example_input_buffer_data,                                      // Source for the memory (CPU-Ram)
-		buffer_size                                                     // How much data we are transfering
+	// Destroy the debug callback
+	// We cant directly call vkDestroyDebugReportCallbackEXT as we need to find the pointer within the Vulkan DLL, See function inplmentation for details.
+	VkHelper::DestroyDebugger(
+		instance, 
+		debugger
 	);
 
+	// Clean up the vulkan instance
+	vkDestroyInstance(
+		instance,
+		NULL
+	);
+
+	DestroyWindow();
+}
 
 
 
-	VkDescriptorPoolSize pool_size[1] = { VkHelper::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1) };
-
-	descriptor_pool = VkHelper::CreateDescriptorPool(device, pool_size, 1, 100);
-
-	VkDescriptorSetLayoutBinding layout_bindings[1] = { VkHelper::DescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT) };
-
-	descriptor_set_layout = VkHelper::CreateDescriptorSetLayout(device, layout_bindings, 1);
-
-	descriptor_set = VkHelper::AllocateDescriptorSet(device, descriptor_pool, descriptor_set_layout, 1);
-
-	{ // Update the Descriptor Set
-		VkDescriptorBufferInfo buffer_info = {};
-		buffer_info.buffer = buffer;
-		buffer_info.offset = 0;
-		buffer_info.range = buffer_size;
-
-		descriptor_write_set = {};
-		descriptor_write_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptor_write_set.dstSet = descriptor_set;
-		descriptor_write_set.dstBinding = 0;
-		descriptor_write_set.dstArrayElement = 0;
-		descriptor_write_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		descriptor_write_set.descriptorCount = 1;
-		descriptor_write_set.pBufferInfo = &buffer_info;
-
-		vkUpdateDescriptorSets(
-			device,
-			1, // Passing over 1 buffer
-			&descriptor_write_set,
-			0,
-			NULL
-		);
-	}
-
-
+void CreateRenderResources()
+{
 
 	swap_chain = VkHelper::CreateSwapchain(
 		physical_device,
@@ -349,26 +314,55 @@ void Setup()
 		framebuffer_attachments,
 		swapchain_image_views
 	);
+	swap_chains[0] = swap_chain;
 
+	sumbit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	sumbit_info.waitSemaphoreCount = 1;
+	sumbit_info.pWaitDstStageMask = &wait_stages;
+	sumbit_info.commandBufferCount = 1;
+	sumbit_info.signalSemaphoreCount = 1;
+
+
+	present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	present_info.waitSemaphoreCount = 1;
+	present_info.swapchainCount = 1;
+	present_info.pSwapchains = swap_chains;
+	present_info.pResults = nullptr;
+
+	// All three semaphores are defined in the main as they are a part of the tuturial on how to create them
+	//sumbit_info.pSignalSemaphores = nullptr;
+	//sumbit_info.pWaitSemaphores = nullptr;
+	//present_info.pWaitSemaphores = nullptr;
 }
 
-// Everything within the Destroy is from previous tuturials
-// Destroy
-// - Buffer
-// - Command Pool
-// - Device
-// - Debugger
-// - Instance
-void Destroy()
+void DestroyRenderResources()
 {
+
+	vkDestroyRenderPass(
+		device,
+		renderpass,
+		nullptr
+	);
+
+	vkDestroySwapchainKHR(
+		device,
+		swap_chain,
+		nullptr
+	);
+
 	for (int i = 0; i < swapchain_image_count; i++)
 	{
+		vkDestroyImageView(
+			device,
+			swapchain_image_views.get()[i],
+			nullptr
+		);
+
 		vkDestroyFramebuffer(
 			device,
 			framebuffers.get()[i],
 			nullptr
 		);
-
 		vkDestroyImageView(
 			device,
 			framebuffer_attachments.get()[i].color.view,
@@ -411,88 +405,121 @@ void Destroy()
 		);
 	}
 
-	vkDestroyRenderPass(
-		device,
-		renderpass,
-		nullptr
-	);
-
-	for (uint32_t i = 0; i < swapchain_image_count; i++)
-	{
-		vkDestroyImageView(
-			device,
-			swapchain_image_views.get()[i],
-			nullptr
-		);
-	}
-
-	vkDestroySwapchainKHR(
-		device,
-		swap_chain,
-		nullptr
-	);
-
-	vkDestroyDescriptorSetLayout(
-		device,
-		descriptor_set_layout,
-		nullptr
-	);
-	vkDestroyDescriptorPool(
-		device,
-		descriptor_pool,
-		nullptr
-	);
-
-	// Now we unmap the data
-	vkUnmapMemory(
-		device,
-		buffer_memory
-	);
-
-	// Clean up the buffer data
-	vkDestroyBuffer(
-		device,
-		buffer,
-		nullptr
-	);
-
-	// Free the memory that was allocated for the buffer
-	vkFreeMemory(
-		device,
-		buffer_memory,
-		nullptr
-	);
-
-	// Clean up the command pool
-	vkDestroyCommandPool(
-		device,
-		command_pool,
-		nullptr
-	);
-
-	// Clean up the device now that the project is stopping
-	vkDestroyDevice(
-		device,
-		nullptr
-	);
-
-	// Destroy the debug callback
-	// We cant directly call vkDestroyDebugReportCallbackEXT as we need to find the pointer within the Vulkan DLL, See function inplmentation for details.
-	VkHelper::DestroyDebugger(
-		instance, 
-		debugger
-	);
-
-	// Clean up the vulkan instance
-	vkDestroyInstance(
-		instance,
-		NULL
-	);
-
-	DestroyWindow();
 }
 
 
+void RebuildRenderResources()
+{
+	VkResult device_idle_result = vkDeviceWaitIdle(device);
+	assert(device_idle_result == VK_SUCCESS);
+
+	DestroyRenderResources();
+	CreateRenderResources();
+	BuildCommandBuffers(command_buffers, swapchain_image_count);
+}
+
+
+
+void BuildCommandBuffers(std::unique_ptr<VkCommandBuffer>& command_buffers, const uint32_t buffer_count)
+{
+	VkCommandBufferBeginInfo command_buffer_begin_info = {};
+	command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+	command_buffer_begin_info.pInheritanceInfo = nullptr;
+
+
+	float clear_color[4] = { 1.0f,1.0f,0.0f,1.0f };
+
+	VkClearValue clear_values[3]{};
+
+	std::copy(std::begin(clear_color), std::end(clear_color), std::begin(clear_values[0].color.float32)); // Present
+	std::copy(std::begin(clear_color), std::end(clear_color), std::begin(clear_values[1].color.float32)); // Color Image
+	clear_values[2].depthStencil = { 1.0f, 0 };                                                           // Depth Image
+
+
+	VkRenderPassBeginInfo render_pass_info = {};
+	render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	render_pass_info.renderPass = renderpass;
+	render_pass_info.renderArea.offset = { 0, 0 };
+	render_pass_info.renderArea.extent = { window_width, window_height };
+	render_pass_info.clearValueCount = 3;
+	render_pass_info.pClearValues = clear_values;
+
+	VkImageSubresourceRange subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
+
+
+	for (unsigned int i = 0; i < buffer_count; i++)
+	{
+		// Reset the command buffers
+		vkResetCommandBuffer(
+			command_buffers.get()[i],
+			0
+		);
+
+		render_pass_info.framebuffer = framebuffers.get()[i];
+
+		VkResult begin_command_buffer_result = vkBeginCommandBuffer(
+			command_buffers.get()[i],
+			&command_buffer_begin_info
+		);
+		assert(begin_command_buffer_result == VK_SUCCESS);
+
+
+		vkCmdBeginRenderPass(
+			command_buffers.get()[i],
+			&render_pass_info,
+			VK_SUBPASS_CONTENTS_INLINE
+		);
+
+
+		vkCmdSetLineWidth(
+			command_buffers.get()[i],
+			1.0f
+		);
+
+		VkViewport viewport = {};
+		viewport.x = 0;
+		viewport.y = 0;
+		viewport.width = window_width;
+		viewport.height = window_height;
+		viewport.minDepth = 0.0f;
+		viewport.maxDepth = 1.0f;
+
+		vkCmdSetViewport(
+			command_buffers.get()[i],
+			0,
+			1,
+			&viewport
+		);
+		VkRect2D scissor{};
+		scissor.extent.width = window_width;
+		scissor.extent.height = window_height;
+		scissor.offset.x = 0;
+		scissor.offset.y = 0;
+
+		vkCmdSetScissor(
+			command_buffers.get()[i],
+			0,
+			1,
+			&scissor
+		);
+
+
+
+		// To do
+
+
+		vkCmdEndRenderPass(
+			command_buffers.get()[i]
+		);
+
+		VkResult end_command_buffer_result = vkEndCommandBuffer(
+			command_buffers.get()[i]
+		);
+		assert(end_command_buffer_result == VK_SUCCESS);
+
+	}
+}
 
 
 int main(int argc, char **argv)
@@ -539,10 +566,7 @@ int main(int argc, char **argv)
 	assert(create_semaphore_result == VK_SUCCESS);
 
 
-
-
-
-	std::unique_ptr<VkCommandBuffer> command_buffers = std::unique_ptr<VkCommandBuffer>(new VkCommandBuffer[swapchain_image_count]);
+	command_buffers = std::unique_ptr<VkCommandBuffer>(new VkCommandBuffer[swapchain_image_count]);
 	
 	VkCommandBufferAllocateInfo command_buffer_allocate_info = VkHelper::CommandBufferAllocateInfo(
 		command_pool,
@@ -558,124 +582,16 @@ int main(int argc, char **argv)
 	
 
 
-	VkCommandBufferBeginInfo command_buffer_begin_info = {};
-	command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
-	command_buffer_begin_info.pInheritanceInfo = nullptr;
+	BuildCommandBuffers(command_buffers, swapchain_image_count);
 
+	// sumbit_info and present_info are defined within CreateRenderResources as they need to get the
+	// newly created swapchain instance
 
-	float clear_color[4] = { 1.0f,1.0f,0.0f,1.0f };
-
-	VkClearValue clear_values[3]{};
-
-	std::copy(std::begin(clear_color), std::end(clear_color), std::begin(clear_values[0].color.float32)); // Present
-	std::copy(std::begin(clear_color), std::end(clear_color), std::begin(clear_values[1].color.float32)); // Color Image
-	clear_values[2].depthStencil = { 1.0f, 0 };                                                           // Depth Image
-
-
-	VkRenderPassBeginInfo render_pass_info = {};
-	render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-	render_pass_info.renderPass = renderpass;
-	render_pass_info.renderArea.offset = { 0, 0 };
-	render_pass_info.renderArea.extent = { window_width, window_height };
-	render_pass_info.clearValueCount = 3;
-	render_pass_info.pClearValues = clear_values;
-
-	VkImageSubresourceRange subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
-
-
-	for (unsigned int i = 0; i < swapchain_image_count; i++)
-	{
-		// Reset the command buffers
-		vkResetCommandBuffer(
-			command_buffers.get()[i],
-			0
-		);
-
-		render_pass_info.framebuffer = framebuffers.get()[i];
-
-		VkResult begin_command_buffer_result = vkBeginCommandBuffer(
-			command_buffers.get()[i],
-			&command_buffer_begin_info
-		);
-		assert(begin_command_buffer_result == VK_SUCCESS);
-
-
-		vkCmdBeginRenderPass(
-			command_buffers.get()[i],
-			&render_pass_info,
-			VK_SUBPASS_CONTENTS_INLINE
-		);
-
-
-		vkCmdSetLineWidth(
-			command_buffers.get()[i],
-			1.0f
-		);
-		
-		VkViewport viewport = {};
-		viewport.x = 0;
-		viewport.y = 0;
-		viewport.width = window_width;
-		viewport.height = window_height;
-		viewport.minDepth = 0.0f;
-		viewport.maxDepth = 1.0f;
-
-		vkCmdSetViewport(
-			command_buffers.get()[i],
-			0,
-			1,
-			&viewport
-		);
-		VkRect2D scissor{};
-		scissor.extent.width = window_width;
-		scissor.extent.height = window_height;
-		scissor.offset.x = 0;
-		scissor.offset.y = 0;
-
-		vkCmdSetScissor(
-			command_buffers.get()[i],
-			0,
-			1,
-			&scissor
-		);
-
-
-
-		// To do
-
-
-		vkCmdEndRenderPass(
-			command_buffers.get()[i]
-		);
-
-		VkResult end_command_buffer_result = vkEndCommandBuffer(
-			command_buffers.get()[i]
-		);
-		assert(end_command_buffer_result == VK_SUCCESS);
-
-	}
-
-
-	VkPipelineStageFlags wait_stages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	VkSubmitInfo sumbit_info = {};
-	sumbit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	sumbit_info.waitSemaphoreCount = 1;
-	sumbit_info.pWaitSemaphores = &image_available_semaphore;
-	sumbit_info.pWaitDstStageMask = &wait_stages;
-	sumbit_info.commandBufferCount = 1;
-	sumbit_info.signalSemaphoreCount = 1;
+	// We need to attach our demaphores to the pre defined structures from before
 	sumbit_info.pSignalSemaphores = &render_finished_semaphore;
+	sumbit_info.pWaitSemaphores = &image_available_semaphore;
 
-
-	VkSwapchainKHR swap_chains[] = { swap_chain };
-	VkPresentInfoKHR present_info = {};
-	present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-	present_info.waitSemaphoreCount = 1;
 	present_info.pWaitSemaphores = &render_finished_semaphore;
-	present_info.swapchainCount = 1;
-	present_info.pSwapchains = swap_chains;
-	present_info.pResults = nullptr;
 
 	while (window_open)
 	{
@@ -736,7 +652,13 @@ int main(int argc, char **argv)
 			present_queue,
 			&present_info
 		);
-		assert(queue_present_result == VK_SUCCESS);
+
+		if (queue_present_result == VK_ERROR_OUT_OF_DATE_KHR)
+		{
+			RebuildRenderResources();
+		}
+
+		assert(queue_present_result == VK_SUCCESS || queue_present_result == VK_ERROR_OUT_OF_DATE_KHR);
 
 		VkResult device_idle_result = vkDeviceWaitIdle(device);
 		assert(device_idle_result == VK_SUCCESS);
