@@ -718,7 +718,7 @@ int main(int argc, char **argv)
 
 	VkSubpassDescription subpass = {};
 	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-	subpass.colorAttachmentCount = color_attachment_refrence_count;
+	subpass.colorAttachmentCount = 1;
 	subpass.pColorAttachments = color_attachment_refrences;
 	subpass.pDepthStencilAttachment = &depth_attachment_refrence;
 

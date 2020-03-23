@@ -219,3 +219,27 @@ VkImageMemoryBarrier VkHelper::ImageMemoryBarrier(VkImage & image, VkFormat & fo
 	}
 	return barrier;
 }
+
+VkRenderPassBeginInfo VkHelper::RenderPassBeginInfo(VkRenderPass render_pass, VkOffset2D offset, VkExtent2D swapchain_extent)
+{
+	VkRenderPassBeginInfo render_pass_info = {};
+	render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+	render_pass_info.renderPass = render_pass;
+	render_pass_info.renderArea.offset = offset;
+	render_pass_info.renderArea.extent = swapchain_extent;
+	render_pass_info.clearValueCount = 0;
+	render_pass_info.pClearValues = nullptr;
+	return render_pass_info;
+}
+
+VkViewport VkHelper::Viewport(float width, float height, float x, float y, float min_depth, float max_depth)
+{
+	VkViewport viewport = {};
+	viewport.x = x;
+	viewport.y = y;
+	viewport.width = width;
+	viewport.height = height;
+	viewport.minDepth = min_depth;
+	viewport.maxDepth = max_depth;
+	return viewport;
+}

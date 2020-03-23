@@ -1,11 +1,11 @@
 cmake_minimum_required(VERSION 2.6)
 
-set(project_name 8-Present)
+set(project_name 9-GraphicsPipeline)
 project(${project_name})
 
 set(HAVE_LIBC TRUE)
 set(src
-    Present.cpp
+    GraphicsPipeline.cpp
 
 )
  

@@ -38,4 +38,9 @@ namespace VkHelper
 	VkImageMemoryBarrier ImageMemoryBarrier();
 
 	VkImageMemoryBarrier ImageMemoryBarrier(VkImage & image, VkFormat & format, VkImageLayout & old_layout, VkImageLayout & new_layout);
+
+	VkRenderPassBeginInfo RenderPassBeginInfo(VkRenderPass render_pass, VkOffset2D offset, VkExtent2D swapchain_extent);
+
+	VkViewport Viewport(float width, float height, float x, float y, float min_depth, float max_depth);
+
 }

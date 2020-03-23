@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <memory>
+#include <fstream>
 
 // A basic debug callback. A more advanced one could be created, but this will do for basic debugging
 VKAPI_ATTR VkBool32 VKAPI_CALL MyDebugReportCallback(
@@ -426,7 +427,7 @@ bool VkHelper::CreateBuffer(const VkDevice& device, const VkPhysicalDeviceMemory
 
 
 	VkMemoryAllocateInfo memory_allocate_info = VkHelper::MemroyAllocateInfo(
-		size,                                                           // How much memory we wish to allocate on the GPU
+		buffer_memory_requirements.size,                                // How much memory we wish to allocate on the GPU
 		memory_type                                                     // What tyoe if memory we want to allocate
 	);
 
@@ -1076,7 +1077,7 @@ VkRenderPass VkHelper::CreateRenderPass(const VkPhysicalDevice & physical_device
 
 	VkSubpassDescription subpass = {};
 	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-	subpass.colorAttachmentCount = color_attachment_refrence_count;
+	subpass.colorAttachmentCount = 1;
 	subpass.pColorAttachments = color_attachment_refrences;
 	subpass.pDepthStencilAttachment = &depth_attachment_refrence;
 
@@ -1157,4 +1158,19 @@ VkRenderPass VkHelper::CreateRenderPass(const VkPhysicalDevice & physical_device
 	}
 
 	return renderpass;
+}
+
+void VkHelper::ReadShaderFile(const char * filename, char *& data, unsigned int & size)
+{
+	std::ifstream file(filename, std::ios::ate | std::ios::binary);
+
+	if (!file.is_open())
+	{
+		throw std::runtime_error("failed to open file!");
+	}
+	size = file.tellg();
+	data = new char[size];
+	file.seekg(0);
+	file.read(data, size);
+	file.close();
 }

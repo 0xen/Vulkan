@@ -80,4 +80,7 @@ namespace VkHelper
 		const VkCommandPool& command_pool, const VkQueue& queue, uint32_t width, uint32_t height, std::unique_ptr<VkFramebuffer>& framebuffers, std::unique_ptr<VulkanAttachments>& framebuffer_attachments,
 		std::unique_ptr<VkImageView>& swapchain_image_views);
 
+	void ReadShaderFile(const char* filename, char*& data, unsigned int& size);
+
+
 }
