@@ -117,13 +117,13 @@ VkDescriptorSetLayoutCreateInfo VkHelper::DescriptorSetLayoutCreateInfo(const Vk
 	return info;
 }
 
-VkDescriptorSetAllocateInfo VkHelper::DescriptorSetAllocateInfo(VkDescriptorPool descriptor_pool, const VkDescriptorSetLayout * set_layouts, uint32_t descriptor_set_count)
+VkDescriptorSetAllocateInfo VkHelper::DescriptorSetAllocateInfo(VkDescriptorPool descriptor_pool, const VkDescriptorSetLayout& set_layouts, uint32_t descriptor_set_count)
 {
 	VkDescriptorSetAllocateInfo info = {};
 	info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	info.descriptorPool = descriptor_pool;
 	info.descriptorSetCount = descriptor_set_count;
-	info.pSetLayouts = set_layouts;
+	info.pSetLayouts = &set_layouts;
 	return info;
 }
 
@@ -152,6 +152,20 @@ VkSubmitInfo VkHelper::SubmitInfo(VkCommandBuffer & buffer)
 	info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	info.commandBufferCount = 1;
 	info.pCommandBuffers = &buffer;
+	return info;
+}
+
+VkSubmitInfo VkHelper::SubmitInfo(unsigned int wait_semaphore_count, VkSemaphore* wait_semaphore, unsigned int signal_semaphore_count,
+	VkSemaphore* signal_semaphore, VkPipelineStageFlags& wait_stages, unsigned int command_buffer_count)
+{
+	VkSubmitInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	info.waitSemaphoreCount = wait_semaphore_count;
+	info.pWaitSemaphores = wait_semaphore;
+	info.pWaitDstStageMask = &wait_stages;
+	info.commandBufferCount = command_buffer_count;
+	info.signalSemaphoreCount = signal_semaphore_count;
+	info.pSignalSemaphores = signal_semaphore;
 	return info;
 }
 
@@ -242,4 +256,80 @@ VkViewport VkHelper::Viewport(float width, float height, float x, float y, float
 	viewport.minDepth = min_depth;
 	viewport.maxDepth = max_depth;
 	return viewport;
+}
+
+VkRect2D VkHelper::Scissor(float width, float height, float offset_x, float offset_y)
+{
+	VkRect2D scissor{};
+	scissor.extent.width = width;
+	scissor.extent.height = height;
+	scissor.offset.x = offset_x;
+	scissor.offset.y = offset_y;
+	return scissor;
+}
+
+VkSamplerCreateInfo VkHelper::SamplerCreateInfo()
+{
+	VkSamplerCreateInfo sampler_create_info{};
+	sampler_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	sampler_create_info.maxAnisotropy = 1.0f;
+
+	// Point
+	sampler_create_info.magFilter = VK_FILTER_NEAREST;
+	sampler_create_info.minFilter = VK_FILTER_NEAREST;
+	// Byliniar
+	//sampler_info.magFilter = VK_FILTER_LINEAR;
+	//sampler_info.minFilter = VK_FILTER_LINEAR;
+	sampler_create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	sampler_create_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	sampler_create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	sampler_create_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT;
+	sampler_create_info.mipLodBias = 0.0f;
+	sampler_create_info.compareOp = VK_COMPARE_OP_NEVER;
+	sampler_create_info.minLod = 0.0f;
+	// Set max level-of-detail to mip level count of the texture
+	sampler_create_info.maxLod = (float)1;
+
+	// Do not use anisotropy
+	sampler_create_info.maxAnisotropy = 1.0;
+	sampler_create_info.anisotropyEnable = VK_FALSE;
+
+	sampler_create_info.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+
+	return sampler_create_info;
+}
+
+VkImageViewCreateInfo VkHelper::ImageViewCreate(VkImage image, VkFormat format, VkImageAspectFlags aspect_flags)
+{
+
+	VkImageViewCreateInfo create_info = {};
+	create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	create_info.image = image;
+	create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	create_info.format = format;
+	create_info.components.r = VK_COMPONENT_SWIZZLE_R;
+	create_info.components.g = VK_COMPONENT_SWIZZLE_G;
+	create_info.components.b = VK_COMPONENT_SWIZZLE_B;
+	create_info.components.a = VK_COMPONENT_SWIZZLE_A;
+	create_info.subresourceRange.aspectMask = aspect_flags;// VK_IMAGE_ASPECT_COLOR_BIT;
+	create_info.subresourceRange.baseMipLevel = 0;
+	create_info.subresourceRange.levelCount = 1;
+	create_info.subresourceRange.baseArrayLayer = 0;
+	create_info.subresourceRange.layerCount = 1;
+	return create_info;
+
+}
+
+VkPresentInfoKHR VkHelper::PresentInfoKHR(unsigned int wait_semaphore_count, VkSemaphore* wait_semaphore, VkSwapchainKHR& swapchain)
+{
+	VkPresentInfoKHR info = {};
+	info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	info.waitSemaphoreCount = wait_semaphore_count;
+	info.pWaitSemaphores = wait_semaphore;
+	info.swapchainCount = 1;
+	// The swapchain will be recreated whenever the window is resized or the KHR becomes invalid
+	// But the pointer to our swapchain will remain intact
+	info.pSwapchains = &swapchain;
+	info.pResults = nullptr;
+	return info;
 }

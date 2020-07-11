@@ -27,13 +27,16 @@ namespace VkHelper
 
 	VkDescriptorSetLayoutCreateInfo DescriptorSetLayoutCreateInfo(const VkDescriptorSetLayoutBinding* bindings, uint32_t binding_count);
 
-	VkDescriptorSetAllocateInfo DescriptorSetAllocateInfo(VkDescriptorPool descriptor_pool, const VkDescriptorSetLayout* set_layouts, uint32_t descriptor_set_count);
+	VkDescriptorSetAllocateInfo DescriptorSetAllocateInfo(VkDescriptorPool descriptor_pool, const VkDescriptorSetLayout& set_layouts, uint32_t descriptor_set_count);
 
 	VkCommandBufferAllocateInfo CommandBufferAllocateInfo(VkCommandPool pool, uint32_t command_buffer_count);
 
 	VkCommandBufferBeginInfo CommandBufferBeginInfo(VkCommandBufferUsageFlags flag);
 
-	VkSubmitInfo SubmitInfo(VkCommandBuffer & buffer);
+	VkSubmitInfo SubmitInfo(VkCommandBuffer& buffer);
+
+	VkSubmitInfo SubmitInfo(unsigned int wait_semaphore_count, VkSemaphore* wait_semaphore, unsigned int signal_semaphore_count, 
+		VkSemaphore* signal_semaphore, VkPipelineStageFlags& wait_stages,unsigned int command_buffer_count = 1);
 
 	VkImageMemoryBarrier ImageMemoryBarrier();
 
@@ -43,4 +46,11 @@ namespace VkHelper
 
 	VkViewport Viewport(float width, float height, float x, float y, float min_depth, float max_depth);
 
+	VkRect2D Scissor(float width, float height, float offset_x, float offset_y);
+
+	VkSamplerCreateInfo SamplerCreateInfo();
+
+	VkImageViewCreateInfo ImageViewCreate(VkImage image, VkFormat format, VkImageAspectFlags aspect_flags);
+
+	VkPresentInfoKHR PresentInfoKHR(unsigned int wait_semaphore_count, VkSemaphore* wait_semaphore,VkSwapchainKHR& swapchain);
 }

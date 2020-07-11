@@ -57,9 +57,10 @@ std::unique_ptr<VkImage> swapchain_images;
 uint32_t swapchain_image_count;
 std::unique_ptr<VkImageView> swapchain_image_views;
 
-
+// Create a new sdl window
 void WindowSetup(const char* title, int width, int height)
 {
+	// Create window context with the surface usable by vulkan
 	window = SDL_CreateWindow(
 		title,
 		SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
@@ -72,13 +73,15 @@ void WindowSetup(const char* title, int width, int height)
 	window_height = height;
 
 	SDL_VERSION(&window_info.version);
+	// Verify the window was created correctly
 	bool sucsess = SDL_GetWindowWMInfo(window, &window_info);
 	assert(sucsess && "Error, unable to get window info");
 }
 
+// Check for window updates and process them
 void PollWindow()
 {
-
+	// Currently the windowing system is very very basic and we do not need to process any events
 	// Poll Window
 	SDL_Event event;
 	bool rebuild = false;
@@ -89,26 +92,17 @@ void PollWindow()
 		case SDL_QUIT:
 
 			break;
-		case SDL_WINDOWEVENT:
-			switch (event.window.event)
-			{
-				//Get new dimensions and repaint on window size change
-			case SDL_WINDOWEVENT_SIZE_CHANGED:
-
-				Sint32 width = event.window.data1;
-				Sint32 height = event.window.data2;
-
-				break;
-			}
-			break;
 		}
 	}
 }
+
+// Destroy current window context
 void DestroyWindow()
 {
 	SDL_DestroyWindow(window);
 }
 
+// Create windows surface for sdl to interface with
 void CreateSurface()
 {
 	auto CreateWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr(instance, "vkCreateWin32SurfaceKHR");
@@ -132,6 +126,7 @@ void CreateSurface()
 // - Device
 // - Command Pool
 // - Buffer
+// - Descriptors
 void Setup()
 {
 	// Define what Layers and Extentions we require
@@ -147,7 +142,7 @@ void Setup()
 	instance = VkHelper::CreateInstance(
 		instance_extensions, extention_count,
 		instance_layers, layer_count,
-		"2 - Device", VK_MAKE_VERSION(1, 0, 0),
+		"6 - Swapchain", VK_MAKE_VERSION(1, 0, 0),
 		"Vulkan", VK_MAKE_VERSION(1, 0, 0),
 		VK_MAKE_VERSION(1, 1, 108));
 
@@ -252,11 +247,12 @@ void Setup()
 	);
 
 
-
-
+	// Define how bing the descriptor pool will be
 	VkDescriptorPoolSize pool_size[1] = { VkHelper::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1) };
 
+	// Create a descriptor pool of x size
 	descriptor_pool = VkHelper::CreateDescriptorPool(device, pool_size, 1, 100);
+
 
 	VkDescriptorSetLayoutBinding layout_bindings[1] = { VkHelper::DescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_VERTEX_BIT) };
 
@@ -287,15 +283,6 @@ void Setup()
 			NULL
 		);
 	}
-
-
-
-
-
-
-
-
-
 }
 
 // Everything within the Destroy is from previous tuturials
@@ -305,6 +292,7 @@ void Setup()
 // - Device
 // - Debugger
 // - Instance
+// - Descriptor
 void Destroy()
 {
 
@@ -512,19 +500,19 @@ int main(int argc, char **argv)
 	create_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR; // Ignore the alpha channel so we can do blending
 
 
-
+	// If we support transfering data from a buffer to this image, then we can enable the feature on the swapchain image
 	if ((capabilities.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT) == VK_IMAGE_USAGE_TRANSFER_DST_BIT)
 	{
 		create_info.imageUsage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 	}
 
+	// If we support transfering data from the swapchain image to a buffer, then we can enable the feature on the swapchain image
 	if ((capabilities.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_SRC_BIT) == VK_IMAGE_USAGE_TRANSFER_SRC_BIT)
 	{
 		create_info.imageUsage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
 	}
 
-
-
+	// Create a new swapchain using the constructor structure
 	VkResult create_swapchain_resut =  vkCreateSwapchainKHR(
 		device,
 		&create_info,
@@ -532,6 +520,7 @@ int main(int argc, char **argv)
 		&swap_chain
 	);
 
+	// Validate the swapchain was created, do this at debug time
 	assert(create_swapchain_resut == VK_SUCCESS);
 
 	// Get the swapchain image count
@@ -542,10 +531,12 @@ int main(int argc, char **argv)
 		nullptr
 	);
 
+	// Make sure the swapchain image count was returned correctly
 	assert(get_swapchain_images_sucsess == VK_SUCCESS);
 
 	swapchain_images = std::unique_ptr<VkImage>(new VkImage[swapchain_image_count]);
 
+	// Get the refrence back to the swapchain images
 	get_swapchain_images_sucsess = vkGetSwapchainImagesKHR(
 		device,
 		swap_chain,
@@ -553,28 +544,32 @@ int main(int argc, char **argv)
 		swapchain_images.get()
 	);
 
+	// Make sure the swapchain images was returned correctly
 	assert(get_swapchain_images_sucsess == VK_SUCCESS);
 
 
 	swapchain_image_views = std::unique_ptr<VkImageView>(new VkImageView[swapchain_image_count]);
 
+	// Loop through for the swapchain images and create new image views
 	for (int i = 0; i < swapchain_image_count; i++)
 	{
+		// Define how the image view will be created
 		VkImageViewCreateInfo image_view_create_info = {};
 		image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-		image_view_create_info.image = swapchain_images.get()[i];
-		image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-		image_view_create_info.format = surface_format.format;
-		image_view_create_info.components.r = VK_COMPONENT_SWIZZLE_R;
-		image_view_create_info.components.g = VK_COMPONENT_SWIZZLE_G;
-		image_view_create_info.components.b = VK_COMPONENT_SWIZZLE_B;
-		image_view_create_info.components.a = VK_COMPONENT_SWIZZLE_A;
+		image_view_create_info.image = swapchain_images.get()[i];							// Give refrence to the swapchain made image
+		image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;							// What tyoe if uange us ut
+		image_view_create_info.format = surface_format.format;								// Whats the image format
+		image_view_create_info.components.r = VK_COMPONENT_SWIZZLE_R;						// What order are the color channels extected
+		image_view_create_info.components.g = VK_COMPONENT_SWIZZLE_G;						// ...
+		image_view_create_info.components.b = VK_COMPONENT_SWIZZLE_B;						// ...
+		image_view_create_info.components.a = VK_COMPONENT_SWIZZLE_A;						// ...
 		image_view_create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-		image_view_create_info.subresourceRange.baseMipLevel = 0;
-		image_view_create_info.subresourceRange.levelCount = 1;
+		image_view_create_info.subresourceRange.baseMipLevel = 0;							// We wont need to use mip mapping for a swapchain image
+		image_view_create_info.subresourceRange.levelCount = 1;								// How many mip levels does the image have
 		image_view_create_info.subresourceRange.baseArrayLayer = 0;
 		image_view_create_info.subresourceRange.layerCount = 1;
 
+		// Create the new image view
 		VkResult create_image_view_result = vkCreateImageView(
 			device,
 			&image_view_create_info,
@@ -587,6 +582,10 @@ int main(int argc, char **argv)
 
 
 
+
+	/////////////////////////////////////////
+	///// Finished setting up Swapchain ///// 
+	/////////////////////////////////////////
 
 
 

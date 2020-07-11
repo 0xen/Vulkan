@@ -56,7 +56,7 @@ void Setup()
 	instance = VkHelper::CreateInstance(
 		instance_extensions, extention_count,
 		instance_layers, layer_count,
-		"2 - Device", VK_MAKE_VERSION(1, 0, 0),
+		"5 - Descriptors", VK_MAKE_VERSION(1, 0, 0),
 		"Vulkan", VK_MAKE_VERSION(1, 0, 0),
 		VK_MAKE_VERSION(1, 1, 108));
 
@@ -310,6 +310,10 @@ int main(int argc, char **argv)
 
 
 
+
+	///////////////////////////////////////////
+	///// Finished setting up Descriptors ///// 
+	///////////////////////////////////////////
 
 
 

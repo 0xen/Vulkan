@@ -61,8 +61,24 @@ uint32_t swapchain_image_count;
 std::unique_ptr<VkImageView> swapchain_image_views;
 
 
+struct VulkanAttachments
+{
+	FrameBufferAttachment color, depth;
+};
+
+// What format will the screen space be in
+const VkFormat colorFormat = VK_FORMAT_R8G8B8A8_UNORM;
+
+VkRenderPass renderpass = VK_NULL_HANDLE;
+std::unique_ptr<VkFramebuffer> framebuffers = nullptr;
+std::unique_ptr<VulkanAttachments> framebuffer_attachments = nullptr;
+
+
+
+// Create a new sdl window
 void WindowSetup(const char* title, int width, int height)
 {
+	// Create window context with the surface usable by vulkan
 	window = SDL_CreateWindow(
 		title,
 		SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
@@ -75,13 +91,16 @@ void WindowSetup(const char* title, int width, int height)
 	window_height = height;
 
 	SDL_VERSION(&window_info.version);
+	// Verify the window was created correctly
 	bool sucsess = SDL_GetWindowWMInfo(window, &window_info);
 	assert(sucsess && "Error, unable to get window info");
 }
 
+// Check for window updates and process them
 void PollWindow()
 {
 
+	// Currently the windowing system is very very basic and we do not need to process any events
 	// Poll Window
 	SDL_Event event;
 	bool rebuild = false;
@@ -92,26 +111,17 @@ void PollWindow()
 		case SDL_QUIT:
 
 			break;
-		case SDL_WINDOWEVENT:
-			switch (event.window.event)
-			{
-				//Get new dimensions and repaint on window size change
-			case SDL_WINDOWEVENT_SIZE_CHANGED:
-
-				Sint32 width = event.window.data1;
-				Sint32 height = event.window.data2;
-
-				break;
-			}
-			break;
 		}
 	}
 }
+
+// Destroy current window context
 void DestroyWindow()
 {
 	SDL_DestroyWindow(window);
 }
 
+// Create windows surface for sdl to interface with
 void CreateSurface()
 {
 	auto CreateWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr(instance, "vkCreateWin32SurfaceKHR");
@@ -135,6 +145,8 @@ void CreateSurface()
 // - Device
 // - Command Pool
 // - Buffer
+// - Descriptor
+// - Swapchain
 void Setup()
 {
 
@@ -154,7 +166,7 @@ void Setup()
 	instance = VkHelper::CreateInstance(
 		instance_extensions, extention_count,
 		instance_layers, layer_count,
-		"2 - Device", VK_MAKE_VERSION(1, 0, 0),
+		"7 Renderpass", VK_MAKE_VERSION(1, 0, 0),
 		"Vulkan", VK_MAKE_VERSION(1, 0, 0),
 		VK_MAKE_VERSION(1, 1, 108));
 
@@ -329,6 +341,8 @@ void Setup()
 
 // Everything within the Destroy is from previous tuturials
 // Destroy
+// - Swapchain
+// - Descriptor
 // - Buffer
 // - Command Pool
 // - Device
@@ -414,14 +428,18 @@ void Destroy()
 
 VkFormat FindSupportedFormat(VkPhysicalDevice physical_device, const VkFormat* candidate_formats, const uint32_t candidate_format_count, VkImageTiling tiling, VkFormatFeatureFlags features)
 {
+	// Loop through the formats we are considering
 	for(int i = 0 ; i < candidate_format_count; i++)
 	{
 		VkFormatProperties props;
+		// Read the properties for the format we are considering
 		vkGetPhysicalDeviceFormatProperties(physical_device, candidate_formats[i], &props);
+		// Do we have the required features for linear tiling
 		if (tiling == VK_IMAGE_TILING_LINEAR && (props.linearTilingFeatures & features) == features)
 		{
 			return candidate_formats[i];
 		}
+		// Do we have the features for optimal tiling
 		else if (tiling == VK_IMAGE_TILING_OPTIMAL && (props.optimalTilingFeatures & features) == features)
 		{
 			return candidate_formats[i];
@@ -440,24 +458,23 @@ struct FrameBufferAttachment
 	VkSampler sampler;
 };
 
-struct VulkanAttachments
-{
-	FrameBufferAttachment color, depth;
-};
-
 VkCommandBuffer BeginSingleTimeCommands(VkCommandPool command_pool)
 {
+	// Create a single command buffer
 	VkCommandBufferAllocateInfo alloc_info = VkHelper::CommandBufferAllocateInfo(
 		command_pool,
 		1
 	);
 	VkCommandBuffer command_buffer;
-	VkResult create_image_view_result = vkAllocateCommandBuffers(
+	// Allocate the command buffer from the GPU
+	VkResult allocate_command_buffer_result = vkAllocateCommandBuffers(
 		device,
 		&alloc_info,
 		&command_buffer
 	);
-	assert(create_image_view_result == VK_SUCCESS);
+	// Check to see if we allocated it okay
+	assert(allocate_command_buffer_result == VK_SUCCESS);
+	// Start the command buffer
 	VkCommandBufferBeginInfo begin_info = VkHelper::CommandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT);
 	VkResult begin_command_buffer = vkBeginCommandBuffer(
 		command_buffer,
@@ -469,7 +486,9 @@ VkCommandBuffer BeginSingleTimeCommands(VkCommandPool command_pool)
 
 void EndSingleTimeCommands(VkCommandBuffer command_buffer, VkCommandPool command_pool)
 {
+	// End the command buffer
 	vkEndCommandBuffer(command_buffer);
+	// Submit the command buffer to the queue
 	VkSubmitInfo submit_info = VkHelper::SubmitInfo(command_buffer);
 	VkResult queue_submit_result = vkQueueSubmit(
 		graphics_queue,
@@ -477,10 +496,13 @@ void EndSingleTimeCommands(VkCommandBuffer command_buffer, VkCommandPool command
 		&submit_info,
 		VK_NULL_HANDLE
 	);
+	// Validate it submitted alright
 	assert(queue_submit_result == VK_SUCCESS);
+	// Wait for the GPU
 	vkQueueWaitIdle(
 		graphics_queue
 	);
+	// Release the command buffers
 	vkFreeCommandBuffers(
 		device,
 		command_pool,
@@ -492,12 +514,14 @@ void EndSingleTimeCommands(VkCommandBuffer command_buffer, VkCommandPool command
 
 void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout, VkImageSubresourceRange subresourceRange)
 {
+	// Create a new single time command
 	VkCommandBuffer command_buffer = BeginSingleTimeCommands(command_pool);
 
+	// Define how we will convert between the image layouts
 	VkImageMemoryBarrier barrier = VkHelper::ImageMemoryBarrier(image, format, old_layout, new_layout);
 
 	barrier.subresourceRange = subresourceRange;
-
+	// Submit the barrier update
 	vkCmdPipelineBarrier(
 		command_buffer,
 		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
@@ -510,6 +534,7 @@ void TransitionImageLayout(VkImage image, VkFormat format, VkImageLayout old_lay
 		1,
 		&barrier
 	);
+	// Submit the command to the GPU
 	EndSingleTimeCommands(command_buffer, command_pool);
 }
 
@@ -530,9 +555,7 @@ void CreateAttachmentImages(VkFormat format, VkImageUsageFlags usage, FrameBuffe
 		aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
 		imageLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 	}
-
-
-
+	// Create a new image for the subpass attachment
 	VkHelper::CreateImage(
 		device,
 		physical_device_mem_properties,
@@ -569,12 +592,6 @@ void CreateAttachmentImages(VkFormat format, VkImageUsageFlags usage, FrameBuffe
 		);
 		assert(create_image_view_result == VK_SUCCESS);
 	}
-
-
-
-
-
-
 
 	{ // Define image sampler
 
@@ -615,10 +632,7 @@ void CreateAttachmentImages(VkFormat format, VkImageUsageFlags usage, FrameBuffe
 		);
 		assert(create_sampler_result == VK_SUCCESS);
 	}
-
-
-
-
+	// If the image is used for color. switch the images layout
 	if (usage & VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT)
 		TransitionImageLayout(attachment.image, format, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_GENERAL, { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 });
 }
@@ -631,16 +645,18 @@ int main(int argc, char **argv)
 
 	Setup();
 
-	const VkFormat colorFormat = VK_FORMAT_R8G8B8A8_UNORM;
 
-	VkRenderPass renderpass = VK_NULL_HANDLE;
-	std::unique_ptr<VkFramebuffer> framebuffers = nullptr;
-	std::unique_ptr<VulkanAttachments> framebuffer_attachments = nullptr;
-
-
-
+	// How many formats are we considering for the depth image?
 	const uint32_t candidate_format_count = 3;
-	const VkFormat candidate_formats[candidate_format_count] = { VK_FORMAT_D32_SFLOAT, VK_FORMAT_D32_SFLOAT_S8_UINT, VK_FORMAT_D24_UNORM_S8_UINT };
+	// What formats are we considering for the depth image
+	// Most modern day GPU's support between two and three of these, VK_FORMAT_D32_SFLOAT is out prefered choice, but the other two will surfice
+	const VkFormat candidate_formats[candidate_format_count] = { 
+		VK_FORMAT_D32_SFLOAT, 
+		VK_FORMAT_D32_SFLOAT_S8_UINT, 
+		VK_FORMAT_D24_UNORM_S8_UINT 
+	};
+
+	// Out of the formats we defines, which one is supported by the gpu
 	VkFormat depth_image_format = FindSupportedFormat(
 		physical_device,
 		candidate_formats,
@@ -654,95 +670,99 @@ int main(int argc, char **argv)
 	VkAttachmentDescription color_attachment = {};
 	VkAttachmentDescription depth_attachment = {};
 
-	{
+	{	// Define how the present attachment will handle its resources
 		present_attachment.format = surface_format.format;
 		present_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-		present_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		present_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-		present_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		present_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		present_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		present_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+		present_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;				// Each subpass (or frame as we only have 1 subpass) we want to clear the last present
+		present_attachment.storeOp = VK_ATTACHMENT_STORE_OP_STORE;				// What do we want to do with the data after the subpass, we want to store it away
+		present_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;		// Dont use stencil currently
+		present_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;	// Dont use stencil currently 
+		present_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;			// The layout the attachment image subresource, in out case its undefined
+		present_attachment.finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;		// Upon finishing what format do we want, since we are presenting, we need PRESENNT_KHR
 	}
 
 	{
 		color_attachment.format = colorFormat;
 		color_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-		color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		color_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		color_attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+		color_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;					// Clear the color each subpass
+		color_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;			// After the subpass we spesify we dont care what happens to the data
+		color_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;		// Dont use stencil currently 
+		color_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;		// Dont use stencil currently 
+		color_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;				// The layout the attachment image subresource, in out case its undefined
+		color_attachment.finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;// The result will be a color attachment
 	}
 
 	{
 		depth_attachment.format = depth_image_format;
 		depth_attachment.samples = VK_SAMPLE_COUNT_1_BIT;
-		depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-		depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-		depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-		depth_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-		depth_attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+		depth_attachment.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;							// Clear the depth each subpass
+		depth_attachment.storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;					// After the subpass we spesify we dont care what happens to the data
+		depth_attachment.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;				// Dont use stencil currently 
+		depth_attachment.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;				// Dont use stencil currently 
+		depth_attachment.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;						// The layout the attachment image subresource, in out case its undefined
+		depth_attachment.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;// The result will be a depth attachment
 	}
 
-
+	// How many attachment descriptions will we have
 	const uint32_t attachment_description_count = 3;
+	// Put the descriptions into a single array
 	VkAttachmentDescription attachment_descriptions[attachment_description_count] = {
 		present_attachment,
 		color_attachment,
 		depth_attachment
 	};
 
-
+	// Define the layout of each attachments
 	VkAttachmentReference present_attachment_refrence = {};
 	present_attachment_refrence.attachment = 0;
-	present_attachment_refrence.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	present_attachment_refrence.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL; // Present color
 
 	VkAttachmentReference color_attachment_refrence = {};
 	color_attachment_refrence.attachment = 1;
-	color_attachment_refrence.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+	color_attachment_refrence.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;	// Color
 
 	VkAttachmentReference depth_attachment_refrence = {};
 	depth_attachment_refrence.attachment = 2;
-	depth_attachment_refrence.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+	depth_attachment_refrence.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL; // Depth
 
 
+	// How many color attachments we have
 	const uint32_t color_attachment_refrence_count = 2;
-
+	// Place all the color attachments into a single array
 	VkAttachmentReference color_attachment_refrences[color_attachment_refrence_count] = {
 		present_attachment_refrence,
 		color_attachment_refrence
 	};
 
+	// In each subpass what attachment refrences we we use
 	VkSubpassDescription subpass = {};
 	subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-	subpass.colorAttachmentCount = 1;
+	subpass.colorAttachmentCount = color_attachment_refrence_count;
 	subpass.pColorAttachments = color_attachment_refrences;
 	subpass.pDepthStencilAttachment = &depth_attachment_refrence;
 
-
+	// What dependancys dose the single subpass we are using have
 	VkSubpassDependency subpass_dependency = {};
-	subpass_dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
-	subpass_dependency.dstSubpass = 0;
-	subpass_dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	subpass_dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-	subpass_dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-	subpass_dependency.srcAccessMask = 0;
+	subpass_dependency.srcSubpass = VK_SUBPASS_EXTERNAL;															// Defines what was the past sub pass we were in
+	subpass_dependency.dstSubpass = 0;																				// Deifne the next subpass
+	subpass_dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;								// What is the incoming attachment
+	subpass_dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;								// Whats the outgoing attachment
+	subpass_dependency.srcAccessMask = 0;																			// Source access mask
+	subpass_dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;	// Destination access mask
 	subpass_dependency.dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT;
 
 
+	// Define the final create render pass structure
 	VkRenderPassCreateInfo render_pass_create_info = {};
 	render_pass_create_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-	render_pass_create_info.attachmentCount = attachment_description_count;
-	render_pass_create_info.pAttachments = attachment_descriptions;
-	render_pass_create_info.subpassCount = 1;
-	render_pass_create_info.pSubpasses = &subpass;
-	render_pass_create_info.dependencyCount = 1;
-	render_pass_create_info.pDependencies = &subpass_dependency;
+	render_pass_create_info.attachmentCount = attachment_description_count;		// How many descriptions do we have
+	render_pass_create_info.pAttachments = attachment_descriptions;				// Pointer to descriptions
+	render_pass_create_info.subpassCount = 1;									// How many subpasses we have
+	render_pass_create_info.pSubpasses = &subpass;								// Pointer back to the subpass definitions
+	render_pass_create_info.dependencyCount = 1;								// How many dependancys are there for the subpass
+	render_pass_create_info.pDependencies = &subpass_dependency;				// Pointer back to the dependancys
 
-
+	// Create the render pass with the defined properties
 	VkResult create_render_pass_result = vkCreateRenderPass(
 		device,
 		&render_pass_create_info,
@@ -750,21 +770,16 @@ int main(int argc, char **argv)
 		&renderpass
 	);
 
+	// Validate the render pass creation
 	assert(create_render_pass_result == VK_SUCCESS);
 
-
-
-
-
+	// Create a framebuffer for each swapchain
 	framebuffers = std::unique_ptr<VkFramebuffer>(new VkFramebuffer[swapchain_image_count]);
 	framebuffer_attachments = std::unique_ptr<VulkanAttachments>(new VulkanAttachments[swapchain_image_count]);
 
-
+	// Loop through for all the new framebuffers
 	for (uint32_t i = 0; i < swapchain_image_count; i++)
 	{
-
-
-
 		// Create the images and make it to that they are readable as color attachments and as image samplers
 		CreateAttachmentImages(colorFormat,
 			VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, framebuffer_attachments.get()[i].color);
@@ -772,23 +787,9 @@ int main(int argc, char **argv)
 		CreateAttachmentImages(depth_image_format,
 			VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, framebuffer_attachments.get()[i].depth);
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+		// Define the attachment count
 		const uint32_t attachment_count = 3;
+		// Create a array containing all the image views rquired
 		VkImageView attachments[attachment_count] = {
 			swapchain_image_views.get()[i],
 			framebuffer_attachments.get()[i].color.view,
@@ -805,12 +806,14 @@ int main(int argc, char **argv)
 		framebuffer_info.height = window_height;
 		framebuffer_info.layers = 1;
 
+		// Create the framebuffers
 		VkResult create_frame_buffer_result = vkCreateFramebuffer(
 			device,
 			&framebuffer_info,
 			nullptr,
 			&framebuffers.get()[i]
 		);
+		// Validate the framebuffer
 		assert(create_render_pass_result == VK_SUCCESS);
 	}
 
@@ -818,11 +821,9 @@ int main(int argc, char **argv)
 
 
 
-
-
-
-
-
+	//////////////////////////////////////////
+	///// Finished setting up Renderpass ///// 
+	//////////////////////////////////////////
 
 
 

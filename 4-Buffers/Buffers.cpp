@@ -43,7 +43,7 @@ void Setup()
 	instance = VkHelper::CreateInstance(
 		instance_extensions, extention_count,
 		instance_layers, layer_count,
-		"2 - Device", VK_MAKE_VERSION(1, 0, 0),
+		"4 - Buffers", VK_MAKE_VERSION(1, 0, 0),
 		"Vulkan", VK_MAKE_VERSION(1, 0, 0),
 		VK_MAKE_VERSION(1, 1, 108));
 
@@ -256,9 +256,13 @@ int main(int argc, char **argv)
 	// Could we map the GPU memory to our CPU accessable pointer
 	assert(mapped_memory_result == VK_SUCCESS);
 
+
+
+
 	////////////////////////////////////////
 	///// Finished Creating the Buffer ///// 
 	////////////////////////////////////////
+
 
 
 

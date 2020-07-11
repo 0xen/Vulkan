@@ -56,12 +56,14 @@ std::unique_ptr<VkHelper::VulkanAttachments> framebuffer_attachments = nullptr;
 
 VkPipelineStageFlags wait_stages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 VkPresentInfoKHR present_info = {};
-VkSubmitInfo sumbit_info = {};
+VkSubmitInfo render_submission_info = {};
 std::unique_ptr<VkCommandBuffer> graphics_command_buffers = nullptr;
 
 
+// Create a new sdl window
 void WindowSetup(const char* title, int width, int height)
 {
+	// Create window context with the surface usable by vulkan
 	window = SDL_CreateWindow(
 		title,
 		SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
@@ -69,16 +71,19 @@ void WindowSetup(const char* title, int width, int height)
 		SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE
 	);
 	SDL_ShowWindow(window);
-	window_open = true;
 
 	window_width = width;
 	window_height = height;
 
 	SDL_VERSION(&window_info.version);
+	// Verify the window was created correctly
 	bool sucsess = SDL_GetWindowWMInfo(window, &window_info);
 	assert(sucsess && "Error, unable to get window info");
+
+	window_open = true;
 }
 
+// Check for window updates and process them
 void PollWindow()
 {
 
@@ -89,27 +94,20 @@ void PollWindow()
 	{
 		switch (event.type)
 		{
-		case SDL_QUIT:
+		case SDL_QUIT: // On quit, define that the window is closed
 			window_open = false;
-			break;
-		case SDL_WINDOWEVENT:
-			switch (event.window.event)
-			{
-				//Get new dimensions and repaint on window size change
-			case SDL_WINDOWEVENT_SIZE_CHANGED:
-				window_width = event.window.data1;
-				window_height = event.window.data2;
-				break;
-			}
 			break;
 		}
 	}
 }
+
+// Destroy current window context
 void DestroyWindow()
 {
 	SDL_DestroyWindow(window);
 }
 
+// Create windows surface for sdl to interface with
 void CreateSurface()
 {
 	auto CreateWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr(instance, "vkCreateWin32SurfaceKHR");
@@ -133,6 +131,9 @@ void CreateSurface()
 // - Device
 // - Command Pool
 // - Buffer
+// - Descriptor
+// - Swapchain
+// - Renderpass
 void Setup()
 {
 
@@ -152,7 +153,7 @@ void Setup()
 	instance = VkHelper::CreateInstance(
 		instance_extensions, extention_count,
 		instance_layers, layer_count,
-		"2 - Device", VK_MAKE_VERSION(1, 0, 0),
+		"8 - Present", VK_MAKE_VERSION(1, 0, 0),
 		"Vulkan", VK_MAKE_VERSION(1, 0, 0),
 		VK_MAKE_VERSION(1, 1, 108));
 
@@ -236,6 +237,9 @@ void Setup()
 
 // Everything within the Destroy is from previous tuturials
 // Destroy
+// - Renderpass
+// - Swapchain
+// - Descriptor
 // - Buffer
 // - Command Pool
 // - Device
@@ -314,11 +318,11 @@ void CreateRenderResources()
 		swapchain_image_views
 	);
 
-	sumbit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	sumbit_info.waitSemaphoreCount = 1;
-	sumbit_info.pWaitDstStageMask = &wait_stages;
-	sumbit_info.commandBufferCount = 1;
-	sumbit_info.signalSemaphoreCount = 1;
+	render_submission_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	render_submission_info.waitSemaphoreCount = 1;
+	render_submission_info.pWaitDstStageMask = &wait_stages;
+	render_submission_info.commandBufferCount = 1;
+	render_submission_info.signalSemaphoreCount = 1;
 
 
 	present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
@@ -408,9 +412,10 @@ void DestroyRenderResources()
 
 void RebuildRenderResources()
 {
+	// Wait for the device to finish
 	VkResult device_idle_result = vkDeviceWaitIdle(device);
 	assert(device_idle_result == VK_SUCCESS);
-
+	// Destroy and rebuild the render resources
 	DestroyRenderResources();
 	CreateRenderResources();
 	BuildCommandBuffers(graphics_command_buffers, swapchain_image_count);
@@ -420,81 +425,84 @@ void RebuildRenderResources()
 
 void BuildCommandBuffers(std::unique_ptr<VkCommandBuffer>& command_buffers, const uint32_t buffer_count)
 {
+	// Define how we will start the command buffer recording
 	VkCommandBufferBeginInfo command_buffer_begin_info = {};
 	command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	command_buffer_begin_info.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
 	command_buffer_begin_info.pInheritanceInfo = nullptr;
 
-
+	// Define the clear color of the screen
 	float clear_color[4] = { 1.0f,1.0f,0.0f,1.0f };
 
 	VkClearValue clear_values[3]{};
 
+	// Copy over the clear color values to the clear color structure
 	std::copy(std::begin(clear_color), std::end(clear_color), std::begin(clear_values[0].color.float32)); // Present
 	std::copy(std::begin(clear_color), std::end(clear_color), std::begin(clear_values[1].color.float32)); // Color Image
 	clear_values[2].depthStencil = { 1.0f, 0 };                                                           // Depth Image
 
-
+	// Define the render pass begin code
 	VkRenderPassBeginInfo render_pass_info = {};
 	render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-	render_pass_info.renderPass = renderpass;
-	render_pass_info.renderArea.offset = { 0, 0 };
-	render_pass_info.renderArea.extent = { window_width, window_height };
-	render_pass_info.clearValueCount = 3;
-	render_pass_info.pClearValues = clear_values;
+	render_pass_info.renderPass = renderpass;								// What render pass is being used
+	render_pass_info.renderArea.offset = { 0, 0 };							// Is the rendering offset? (combination of offsetting and size changes can make a split screen effect)
+	render_pass_info.renderArea.extent = { window_width, window_height };	// Window size
+	render_pass_info.clearValueCount = 3;									// How many clear colors have we defined
+	render_pass_info.pClearValues = clear_values;							// Pointer to the clear colors
 
 	VkImageSubresourceRange subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
 
+	// Define the size of the viewport we are rendering too
+	VkViewport viewport = {};
+	viewport.x = 0;
+	viewport.y = 0;
+	viewport.width = window_width;
+	viewport.height = window_height;
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
 
+	// Define what area of the screen should be kept and what area should be cut
+	VkRect2D scissor{};
+	scissor.extent.width = window_width;
+	scissor.extent.height = window_height;
+	scissor.offset.x = 0;
+	scissor.offset.y = 0;
+	// Loop through for the swapchain buffers
 	for (unsigned int i = 0; i < buffer_count; i++)
 	{
 		// Reset the command buffers
-		vkResetCommandBuffer(
+		VkResult reset_command_buffer_result = vkResetCommandBuffer(
 			command_buffers.get()[i],
 			0
 		);
-
+		assert(reset_command_buffer_result == VK_SUCCESS);
+		// Define the frame buffer we want to use
 		render_pass_info.framebuffer = framebuffers.get()[i];
 
+		// Begin the new command buffer
 		VkResult begin_command_buffer_result = vkBeginCommandBuffer(
 			command_buffers.get()[i],
 			&command_buffer_begin_info
 		);
+		// check to see if the command buffer was created
 		assert(begin_command_buffer_result == VK_SUCCESS);
 
-
+		// Define that we will be starting a new render pass
 		vkCmdBeginRenderPass(
 			command_buffers.get()[i],
 			&render_pass_info,
 			VK_SUBPASS_CONTENTS_INLINE
 		);
 
-
-		vkCmdSetLineWidth(
-			command_buffers.get()[i],
-			1.0f
-		);
-
-		VkViewport viewport = {};
-		viewport.x = 0;
-		viewport.y = 0;
-		viewport.width = window_width;
-		viewport.height = window_height;
-		viewport.minDepth = 0.0f;
-		viewport.maxDepth = 1.0f;
-
+		// Set the viewport
 		vkCmdSetViewport(
 			command_buffers.get()[i],
 			0,
 			1,
 			&viewport
 		);
-		VkRect2D scissor{};
-		scissor.extent.width = window_width;
-		scissor.extent.height = window_height;
-		scissor.offset.x = 0;
-		scissor.offset.y = 0;
 
+		// Set the scissor region
 		vkCmdSetScissor(
 			command_buffers.get()[i],
 			0,
@@ -504,13 +512,18 @@ void BuildCommandBuffers(std::unique_ptr<VkCommandBuffer>& command_buffers, cons
 
 
 
-		// To do
+		///////////////////////////////////////
+		///// Further rendering code..... ///// 
+		///////////////////////////////////////
 
 
+
+		// End the rendering
 		vkCmdEndRenderPass(
 			command_buffers.get()[i]
 		);
 
+		// End the current rendering command
 		VkResult end_command_buffer_result = vkEndCommandBuffer(
 			command_buffers.get()[i]
 		);
@@ -527,19 +540,23 @@ int main(int argc, char **argv)
 
 	uint32_t current_frame_index = 0; // What frame are we currently using
 
+	// Create a new pointer array for the fences
 	std::unique_ptr<VkFence> fences = std::unique_ptr<VkFence>(new VkFence[swapchain_image_count]);
-
+	// Loop through for the amount of swapchain images
 	for (unsigned int i = 0; i < swapchain_image_count; i++)
 	{
+		// Define the fence create info
 		VkFenceCreateInfo info = {};
 		info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
 		info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+		// Create the new fence
 		VkResult create_fence_result = vkCreateFence(
 			device,
 			&info,
 			nullptr,
 			&fences.get()[i]
 		);
+		// Validate the fence
 		assert(create_fence_result == VK_SUCCESS);
 	}
 
@@ -548,48 +565,63 @@ int main(int argc, char **argv)
 
 	VkSemaphoreCreateInfo semaphore_create_info = {};
 	semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-
+	// Create new signal semaphore for image avaliability
 	VkResult create_semaphore_result = vkCreateSemaphore(device,
 		&semaphore_create_info,
 		nullptr,
 		&image_available_semaphore
 	);
+	// Was the semaphore created
 	assert(create_semaphore_result == VK_SUCCESS);
 
+	// Create new signal semaphore for render finishing
 	create_semaphore_result = vkCreateSemaphore(device,
 		&semaphore_create_info,
 		nullptr,
 		&render_finished_semaphore
 	);
+	// Was the semaphore created
 	assert(create_semaphore_result == VK_SUCCESS);
 
-
+	// Create pointer array to the graphics commands
 	graphics_command_buffers = std::unique_ptr<VkCommandBuffer>(new VkCommandBuffer[swapchain_image_count]);
 	
+	// Define that we want x new command buffers, one for each swapchain image
 	VkCommandBufferAllocateInfo command_buffer_allocate_info = VkHelper::CommandBufferAllocateInfo(
 		command_pool,
 		swapchain_image_count
 	);
 
+	// Allocate the new buffers
 	VkResult allocate_command_buffer_resut = vkAllocateCommandBuffers(
 		device,
 		&command_buffer_allocate_info,
 		graphics_command_buffers.get()
 	);
+	// Validate the buffers were made okay
 	assert(allocate_command_buffer_resut == VK_SUCCESS);
 	
 
-
+	// record the new command buffers
 	BuildCommandBuffers(graphics_command_buffers, swapchain_image_count);
 
 	// sumbit_info and present_info are defined within CreateRenderResources as they need to get the
 	// newly created swapchain instance
 
 	// We need to attach our demaphores to the pre defined structures from before
-	sumbit_info.pSignalSemaphores = &render_finished_semaphore;
-	sumbit_info.pWaitSemaphores = &image_available_semaphore;
+	render_submission_info.pSignalSemaphores = &render_finished_semaphore;
+	render_submission_info.pWaitSemaphores = &image_available_semaphore;
 
 	present_info.pWaitSemaphores = &render_finished_semaphore;
+
+
+
+
+	///////////////////////////////////////
+	///// Finished setting up Present ///// 
+	///////////////////////////////////////
+
+
 
 	while (window_open)
 	{
@@ -631,12 +663,12 @@ int main(int argc, char **argv)
 
 
 
-		sumbit_info.pCommandBuffers = &graphics_command_buffers.get()[current_frame_index];
+		render_submission_info.pCommandBuffers = &graphics_command_buffers.get()[current_frame_index];
 
 		VkResult queue_submit_result = vkQueueSubmit(
 			graphics_queue,
 			1,
-			&sumbit_info,
+			&render_submission_info,
 			fences.get()[current_frame_index]
 		);
 		assert(queue_submit_result == VK_SUCCESS);

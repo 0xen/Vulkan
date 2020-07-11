@@ -81,7 +81,7 @@ std::unique_ptr<VkFence> fences = nullptr;
 
 VkSemaphore image_available_semaphore;
 VkSemaphore render_finished_semaphore;
-VkSubmitInfo sumbit_info = {};
+VkSubmitInfo render_submission_info = {};
 VkPresentInfoKHR present_info = {};
 VkPipelineStageFlags wait_stages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 
@@ -106,8 +106,10 @@ VkDeviceMemory index_buffer_memory = VK_NULL_HANDLE;
 void* index_mapped_buffer_memory = nullptr;
 
 
+// Create a new sdl window
 void WindowSetup(const char* title, int width, int height)
 {
+	// Create window context with the surface usable by vulkan
 	window = SDL_CreateWindow(
 		title,
 		SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
@@ -115,16 +117,19 @@ void WindowSetup(const char* title, int width, int height)
 		SDL_WINDOW_VULKAN | SDL_WINDOW_RESIZABLE
 	);
 	SDL_ShowWindow(window);
-	window_open = true;
 
 	window_width = width;
 	window_height = height;
 
 	SDL_VERSION(&window_info.version);
+	// Verify the window was created correctly
 	bool sucsess = SDL_GetWindowWMInfo(window, &window_info);
 	assert(sucsess && "Error, unable to get window info");
+
+	window_open = true;
 }
 
+// Check for window updates and process them
 void PollWindow()
 {
 
@@ -135,7 +140,7 @@ void PollWindow()
 	{
 		switch (event.type)
 		{
-		case SDL_QUIT:
+		case SDL_QUIT: // On quit, define that the window is closed
 			window_open = false;
 			break;
 		case SDL_WINDOWEVENT:
@@ -146,18 +151,21 @@ void PollWindow()
 
 				window_width = event.window.data1;
 				window_height = event.window.data2;
-
+				RebuildRenderResources();
 				break;
 			}
 			break;
 		}
 	}
 }
+
+// Destroy current window context
 void DestroyWindow()
 {
 	SDL_DestroyWindow(window);
 }
 
+// Create windows surface for sdl to interface with
 void CreateSurface()
 {
 	auto CreateWin32SurfaceKHR = (PFN_vkCreateWin32SurfaceKHR)vkGetInstanceProcAddr(instance, "vkCreateWin32SurfaceKHR");
@@ -181,6 +189,9 @@ void CreateSurface()
 // - Device
 // - Command Pool
 // - Buffer
+// - Descriptor
+// - Swapchain
+// - Renderpass
 void Setup()
 {
 
@@ -200,7 +211,7 @@ void Setup()
 	instance = VkHelper::CreateInstance(
 		instance_extensions, extention_count,
 		instance_layers, layer_count,
-		"2 - Device", VK_MAKE_VERSION(1, 0, 0),
+		"9 - Graphics Pipeline", VK_MAKE_VERSION(1, 0, 0),
 		"Vulkan", VK_MAKE_VERSION(1, 0, 0),
 		VK_MAKE_VERSION(1, 1, 108));
 
@@ -280,40 +291,14 @@ void Setup()
 
 	CreateRenderResources();
 
-	fences = std::unique_ptr<VkFence>(new VkFence[swapchain_image_count]);
-
-	for (unsigned int i = 0; i < swapchain_image_count; i++)
-	{
-		VkFenceCreateInfo info = {};
-		info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-		info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-		VkResult create_fence_result = vkCreateFence(
-			device,
-			&info,
-			nullptr,
-			&fences.get()[i]
-		);
-		assert(create_fence_result == VK_SUCCESS);
-	}
 
 
-	VkSemaphoreCreateInfo semaphore_create_info = {};
-	semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+	// Create the fences required for the swapchain rendering 
+	VkHelper::CreateFence(device, fences, swapchain_image_count);
 
-	VkResult create_semaphore_result = vkCreateSemaphore(device,
-		&semaphore_create_info,
-		nullptr,
-		&image_available_semaphore
-	);
-	assert(create_semaphore_result == VK_SUCCESS);
-
-	create_semaphore_result = vkCreateSemaphore(device,
-		&semaphore_create_info,
-		nullptr,
-		&render_finished_semaphore
-	);
-	assert(create_semaphore_result == VK_SUCCESS);
-
+	// Create the image avaliable and finished semaphore
+	VkHelper::CreateVkSemaphore(device, image_available_semaphore);
+	VkHelper::CreateVkSemaphore(device, render_finished_semaphore);
 
 	VkCommandBufferAllocateInfo command_buffer_allocate_info = VkHelper::CommandBufferAllocateInfo(
 		command_pool,
@@ -329,27 +314,17 @@ void Setup()
 	);
 	assert(allocate_command_buffer_resut == VK_SUCCESS);
 
-	sumbit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	sumbit_info.waitSemaphoreCount = 1;
-	sumbit_info.pWaitSemaphores = &image_available_semaphore;
-	sumbit_info.pWaitDstStageMask = &wait_stages;
-	sumbit_info.commandBufferCount = 1;
-	sumbit_info.signalSemaphoreCount = 1;
-	sumbit_info.pSignalSemaphores = &render_finished_semaphore;
+	render_submission_info = VkHelper::SubmitInfo(1, &image_available_semaphore, 1, &render_finished_semaphore, wait_stages);
 
-	present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
-	present_info.waitSemaphoreCount = 1;
-	present_info.pWaitSemaphores = &render_finished_semaphore;
-	present_info.swapchainCount = 1;
-	// The swapchain will be recreated whenevr the window is resized or the KHR becomes invalid
-	// But the pointer to our swapchain will remain intact
-	present_info.pSwapchains = &swap_chain;
-	present_info.pResults = nullptr;
+	present_info = VkHelper::PresentInfoKHR(1, &render_finished_semaphore, swap_chain);
 
 }
 
 // Everything within the Destroy is from previous tuturials
 // Destroy
+// - Renderpass
+// - Swapchain
+// - Descriptor
 // - Buffer
 // - Command Pool
 // - Device
@@ -521,31 +496,34 @@ void DestroyRenderResources()
 	}
 }
 
-
 void RebuildRenderResources()
 {
+	// Wait for the device to finish
 	VkResult device_idle_result = vkDeviceWaitIdle(device);
 	assert(device_idle_result == VK_SUCCESS);
-
+	// Destroy and rebuild the render resources
 	DestroyRenderResources();
 	CreateRenderResources();
 	BuildCommandBuffers(graphics_command_buffers, swapchain_image_count);
 }
 
-
 void BuildCommandBuffers(std::unique_ptr<VkCommandBuffer>& command_buffers, const uint32_t buffer_count)
 {
+	// Define how we will start the command buffer recording
 	VkCommandBufferBeginInfo command_buffer_begin_info = VkHelper::CommandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT);
 
+	// Define the clear color of the screen
 	const float clear_color[4] = { 0.2f,0.2f,0.2f,1.0f };
 
 	VkClearValue clear_values[3]{};
 
+	// Copy over the clear color values to the clear color structure
 	std::copy(std::begin(clear_color), std::end(clear_color), std::begin(clear_values[0].color.float32)); // Present
 	std::copy(std::begin(clear_color), std::end(clear_color), std::begin(clear_values[1].color.float32)); // Color Image
 	clear_values[2].depthStencil = { 1.0f, 0 };                                                           // Depth Image
 
 
+	// Define the render pass begin code
 	VkRenderPassBeginInfo render_pass_info = VkHelper::RenderPassBeginInfo(
 		renderpass,
 		{ 0,0 },
@@ -557,6 +535,27 @@ void BuildCommandBuffers(std::unique_ptr<VkCommandBuffer>& command_buffers, cons
 
 	VkImageSubresourceRange subresourceRange = { VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1 };
 
+	// Define the size of the viewport we are rendering too
+	VkViewport viewport = VkHelper::Viewport(
+		window_width,
+		window_height,
+		0,
+		0,
+		0.0f,
+		1.0f
+	);
+
+	// Define what area of the screen should be kept and what area should be cut
+	VkRect2D scissor = VkHelper::Scissor(
+		window_width,
+		window_height,
+		0,
+		0
+	);
+
+	VkDeviceSize offsets[] = { 0 };
+
+	// Loop through for the swapchain buffers
 	for (unsigned int i = 0; i < buffer_count; i++)
 	{
 		// Reset the command buffers
@@ -566,35 +565,25 @@ void BuildCommandBuffers(std::unique_ptr<VkCommandBuffer>& command_buffers, cons
 		);
 		assert(reset_command_buffer_result == VK_SUCCESS);
 
+		// Define the frame buffer we want to use
 		render_pass_info.framebuffer = framebuffers.get()[i];
 
+		// Begin the new command buffer
 		VkResult begin_command_buffer_result = vkBeginCommandBuffer(
 			command_buffers.get()[i],
 			&command_buffer_begin_info
 		);
+		// check to see if the command buffer was created
 		assert(begin_command_buffer_result == VK_SUCCESS);
 
+		// Define that we will be starting a new render pass
 		vkCmdBeginRenderPass(
 			command_buffers.get()[i],
 			&render_pass_info,
 			VK_SUBPASS_CONTENTS_INLINE
 		);
 
-
-		vkCmdSetLineWidth(
-			command_buffers.get()[i],
-			1.0f
-		);
-
-		VkViewport viewport = VkHelper::Viewport(
-			window_width,
-			window_height,
-			0,
-			0,
-			0.0f,
-			1.0f
-		);
-
+		// Set the viewport
 		vkCmdSetViewport(
 			command_buffers.get()[i],
 			0,
@@ -602,12 +591,7 @@ void BuildCommandBuffers(std::unique_ptr<VkCommandBuffer>& command_buffers, cons
 			&viewport
 		);
 
-		VkRect2D scissor{};
-		scissor.extent.width = window_width;
-		scissor.extent.height = window_height;
-		scissor.offset.x = 0;
-		scissor.offset.y = 0;
-
+		// Set the scissor region
 		vkCmdSetScissor(
 			command_buffers.get()[i],
 			0,
@@ -615,15 +599,14 @@ void BuildCommandBuffers(std::unique_ptr<VkCommandBuffer>& command_buffers, cons
 			&scissor
 		);
 
-
-
+		// Bind the graphics pipeline
 		vkCmdBindPipeline(
 			command_buffers.get()[i],
 			VK_PIPELINE_BIND_POINT_GRAPHICS,
 			graphics_pipeline
 		);
 
-		VkDeviceSize offsets[] = { 0 };
+		// Bind the models vertex buffer
 		vkCmdBindVertexBuffers(
 			command_buffers.get()[i],
 			0,
@@ -632,6 +615,7 @@ void BuildCommandBuffers(std::unique_ptr<VkCommandBuffer>& command_buffers, cons
 			offsets
 		);
 
+		// Bind the models index buffer
 		vkCmdBindIndexBuffer(
 			command_buffers.get()[i],
 			index_buffer,
@@ -639,32 +623,27 @@ void BuildCommandBuffers(std::unique_ptr<VkCommandBuffer>& command_buffers, cons
 			VK_INDEX_TYPE_UINT32
 		);
 
+		// Draw the model
 		vkCmdDrawIndexed(
 			command_buffers.get()[i],
-			3,
-			1,
+			3,							// The model consists of 3 verticies
+			1,							// Draw once model
 			0,
 			0,
 			0
 		);
 
-		/*vkCmdDrawIndexedIndirect(
-			command_buffers.get()[i],
-			m_indirect_draw_buffer->GetBufferData(BufferSlot::Primary)->buffer,
-			j * sizeof(VkDrawIndexedIndirectCommand),
-			1,
-			sizeof(VkDrawIndexedIndirectCommand));*/
 
-
+		// End the rendering
 		vkCmdEndRenderPass(
 			command_buffers.get()[i]
 		);
 
+		// End the current rendering command
 		VkResult end_command_buffer_result = vkEndCommandBuffer(
 			command_buffers.get()[i]
 		);
 		assert(end_command_buffer_result == VK_SUCCESS);
-
 	}
 }
 
@@ -703,12 +682,12 @@ void Render()
 	);
 	assert(reset_fences_result == VK_SUCCESS);
 
-	sumbit_info.pCommandBuffers = &graphics_command_buffers.get()[current_frame_index];
+	render_submission_info.pCommandBuffers = &graphics_command_buffers.get()[current_frame_index];
 
 	VkResult queue_submit_result = vkQueueSubmit(
 		graphics_queue,
 		1,
-		&sumbit_info,
+		&render_submission_info,
 		fences.get()[current_frame_index]
 	);
 	assert(queue_submit_result == VK_SUCCESS);
@@ -738,33 +717,36 @@ int main(int argc, char **argv)
 
 	Setup();
 
-
-
+	// Create a peipeline layout, a pipeline layout defines what descriptors to accept
 	VkPipelineLayoutCreateInfo pipeline_layout_info = {};
 	pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-	pipeline_layout_info.setLayoutCount = 0;
-	pipeline_layout_info.pSetLayouts = nullptr;
+	pipeline_layout_info.setLayoutCount = 0;									// How many descriptor set layouts are we expecting
+	pipeline_layout_info.pSetLayouts = nullptr;									// Pointer to the descriptor set layouts
 	pipeline_layout_info.pushConstantRangeCount = 0;
 	pipeline_layout_info.pPushConstantRanges = 0;
 
+	// Create the pipeline layout
 	VkResult create_pipeline_layout_result = vkCreatePipelineLayout(
 		device,
 		&pipeline_layout_info,
 		nullptr,
 		&graphics_pipeline_layout
 	);
+	// Was the pipeline created
 	assert(create_pipeline_layout_result == VK_SUCCESS);
 
 
+	// How many shaders will the pipeline use
 	unsigned int shader_stage_count = 2;
 
+	// Create pointer array of shader stage create infos
 	std::unique_ptr<VkPipelineShaderStageCreateInfo> shader_stages =
 		std::unique_ptr<VkPipelineShaderStageCreateInfo>(new VkPipelineShaderStageCreateInfo[shader_stage_count]);
 
 
 	char* vertex_shader_data = nullptr;
 	unsigned int vertex_shader_size = 0;
-
+	// Load the vertex shader
 	VkHelper::ReadShaderFile(
 		"../../Data/Shaders/9-GraphicsPipeline/vert.spv",
 		vertex_shader_data,
@@ -773,80 +755,93 @@ int main(int argc, char **argv)
 
 	char* fragment_shader_data = nullptr;
 	unsigned int fragment_shader_size = 0;
-
+	// Load the fragment shader
 	VkHelper::ReadShaderFile(
 		"../../Data/Shaders/9-GraphicsPipeline/frag.spv",
 		fragment_shader_data,
 		fragment_shader_size
 	);
 
-
+	// Create the vertex shader module
 	VkShaderModuleCreateInfo vertex_shader_module_create_info = {};
 	vertex_shader_module_create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
 	vertex_shader_module_create_info.codeSize = vertex_shader_size;
 	vertex_shader_module_create_info.pCode = reinterpret_cast<const uint32_t*>(vertex_shader_data);
 
+	// Create the fragment shader module
 	VkShaderModuleCreateInfo fragment_shader_module_create_info = {};
 	fragment_shader_module_create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
 	fragment_shader_module_create_info.codeSize = fragment_shader_size;
 	fragment_shader_module_create_info.pCode = reinterpret_cast<const uint32_t*>(fragment_shader_data);
 
-
+	// Create the shader
 	VkResult create_shader_module = vkCreateShaderModule(
 		device,
 		&vertex_shader_module_create_info,
 		nullptr,
 		&vertex_shader_module
 	);
+	// Validate the shader module
 	assert(create_shader_module == VK_SUCCESS);
 
+	// Create the shader
 	create_shader_module = vkCreateShaderModule(
 		device,
 		&fragment_shader_module_create_info,
 		nullptr,
 		&fragment_shader_module
 	);
+	// Validate the shader module
 	assert(create_shader_module == VK_SUCCESS);
 
+	// Define the vertex shader create info
 	shader_stages.get()[0] = {};
 	shader_stages.get()[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	shader_stages.get()[0].pName = "main";
-	shader_stages.get()[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+	shader_stages.get()[0].pName = "main";												// In the shader whats the entry function name
+	shader_stages.get()[0].stage = VK_SHADER_STAGE_VERTEX_BIT;							// Define what type of shader we are making
 	shader_stages.get()[0].module = vertex_shader_module;
 
+	// Define the fragment shader create info
 	shader_stages.get()[1] = {};
 	shader_stages.get()[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	shader_stages.get()[1].pName = "main";
-	shader_stages.get()[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+	shader_stages.get()[1].pName = "main";													// In the shader whats the entry function name
+	shader_stages.get()[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;							// Define what type of shader we are making
 	shader_stages.get()[1].module = fragment_shader_module;
 
+	// How many sets of vertex data will be coming into the pipeline at once
 	const uint32_t vertex_input_binding_description_count = 1;
-
+	// Create a pointer list of input bindings
 	std::unique_ptr<VkVertexInputBindingDescription> vertex_input_binding_descriptions =
 		std::unique_ptr<VkVertexInputBindingDescription>(new VkVertexInputBindingDescription[vertex_input_binding_description_count]);
 
-	vertex_input_binding_descriptions.get()[0].binding = 0;
-	vertex_input_binding_descriptions.get()[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-	vertex_input_binding_descriptions.get()[0].stride = sizeof(VertexData);
+	vertex_input_binding_descriptions.get()[0].binding = 0;								// Define the binding
+	vertex_input_binding_descriptions.get()[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;	// How oftern will the data come into the pipeline, since this is 
+																						// the models "vertex data", we want it to come in one vertex at a time
+	vertex_input_binding_descriptions.get()[0].stride = sizeof(VertexData);				// How big is the vertex data packet
 
+
+	// Define hoe many input attribute descriptions we have
+	// These descriptions are diffrence to the binding descriptions as before we defined how oftern a new set of vertex data will be used
+	// Here we define what the vertex data packet is made up of, for example, Vectex Position, Texture UV, Color, etc
 	const uint32_t vertex_input_attribute_description_count = 2;
 
+	// Create a new pointer array of the input attribute description data
 	std::unique_ptr<VkVertexInputAttributeDescription> vertex_input_attribute_descriptions =
 		std::unique_ptr<VkVertexInputAttributeDescription>(new VkVertexInputAttributeDescription[vertex_input_attribute_description_count]);
 
 	// Used to store the position data of the vertex
-	vertex_input_attribute_descriptions.get()[0].binding = 0;
-	vertex_input_attribute_descriptions.get()[0].location = 0;
-	vertex_input_attribute_descriptions.get()[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-	vertex_input_attribute_descriptions.get()[0].offset = offsetof(VertexData,position);
+	vertex_input_attribute_descriptions.get()[0].binding = 0;								// What vertex input binding are we talking about
+	vertex_input_attribute_descriptions.get()[0].location = 0;								// Inside the binding what is its location id
+	vertex_input_attribute_descriptions.get()[0].format = VK_FORMAT_R32G32B32_SFLOAT;		// What format is the data coming in as
+	vertex_input_attribute_descriptions.get()[0].offset = offsetof(VertexData,position);	// Withn the whole structure of the data packet, where dose it start in memory
 
-	vertex_input_attribute_descriptions.get()[1].binding = 0;
-	vertex_input_attribute_descriptions.get()[1].location = 1;
-	vertex_input_attribute_descriptions.get()[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-	vertex_input_attribute_descriptions.get()[1].offset = offsetof(VertexData, color);
+	vertex_input_attribute_descriptions.get()[1].binding = 0;								// What vertex input binding are we talking about
+	vertex_input_attribute_descriptions.get()[1].location = 1;								// Inside the binding what is its location id
+	vertex_input_attribute_descriptions.get()[1].format = VK_FORMAT_R32G32B32_SFLOAT;		// What format is the data coming in as
+	vertex_input_attribute_descriptions.get()[1].offset = offsetof(VertexData, color);		// Withn the whole structure of the data packet, where dose it start in memory
 
 
-
+	// Create the vertex input state create info to store all data relating to the vertex input
 	VkPipelineVertexInputStateCreateInfo vertex_input_info = {};
 	vertex_input_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	vertex_input_info.vertexBindingDescriptionCount = vertex_input_binding_description_count;
@@ -855,36 +850,36 @@ int main(int argc, char **argv)
 	vertex_input_info.pVertexAttributeDescriptions = vertex_input_attribute_descriptions.get();
 	
 
-
+	// Define what type of data we will be processing and how it will be stitched together. in this instance, its a list of triangles
 	VkPipelineInputAssemblyStateCreateInfo input_assembly = {};
 	input_assembly.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
 	input_assembly.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 	input_assembly.primitiveRestartEnable = VK_FALSE;
 
 
-
+	// Define that the pipeline will have one viewport and one scissor
 	VkPipelineViewportStateCreateInfo viewport_state = {};
 	viewport_state.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
 	viewport_state.viewportCount = 1;
 	viewport_state.scissorCount = 1;
 
 
-
+	// Define various rasterizeer settings
 	VkPipelineRasterizationStateCreateInfo rasterizer = {};
 	rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
 	rasterizer.depthClampEnable = VK_FALSE;
 	rasterizer.rasterizerDiscardEnable = VK_FALSE;
-	rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
-	rasterizer.lineWidth = 1.0f;
-	rasterizer.cullMode = VK_CULL_MODE_NONE;// VK_CULL_MODE_BACK_BIT;
-	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+	rasterizer.polygonMode = VK_POLYGON_MODE_FILL;										// Will the rasterizer break up the triangles into pixels
+	rasterizer.lineWidth = 1.0f;														// If lines are drawn (Not VK_POLYGON_MODE_FILL), how wide will they be
+	rasterizer.cullMode = VK_CULL_MODE_NONE;											// Will any culling be preformed on the model
+	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;								// What order is the vertex data coming in, this is to help determan culling
 	rasterizer.depthBiasEnable = VK_FALSE;
 	rasterizer.depthBiasConstantFactor = 0.0f;
 	rasterizer.depthBiasClamp = 0.0f;
 	rasterizer.depthBiasSlopeFactor = 0.0f;
 
 
-
+	// Here we define information for multisampling, in this case we do not need multisampling and provide defaults
 	VkPipelineMultisampleStateCreateInfo multisampling = {};
 	multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
 	multisampling.sampleShadingEnable = VK_FALSE;
@@ -895,17 +890,17 @@ int main(int argc, char **argv)
 	multisampling.alphaToOneEnable = VK_FALSE;
 
 
-
+	// Define how the depth buffer will be used
 	VkPipelineDepthStencilStateCreateInfo depth_stencil = {};
 	depth_stencil.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-	depth_stencil.depthTestEnable = VK_TRUE;
-	depth_stencil.depthWriteEnable = VK_TRUE;
-	depth_stencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+	depth_stencil.depthTestEnable = VK_TRUE;											// We want to test for depth
+	depth_stencil.depthWriteEnable = VK_TRUE;											// We want to wright depth information to the buffer
+	depth_stencil.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;							// New data should be less then the previous data
 	depth_stencil.depthBoundsTestEnable = VK_FALSE;
 	depth_stencil.stencilTestEnable = VK_FALSE;
 
 
-
+	// Define how color blending will happen between attachments
 	VkPipelineColorBlendAttachmentState color_blend_attachment = {};
 	color_blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 	color_blend_attachment.blendEnable = VK_TRUE;
@@ -917,7 +912,7 @@ int main(int argc, char **argv)
 	color_blend_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
 
 
-
+	// Define how much color blending will happen between draws, in this case we want none
 	VkPipelineColorBlendStateCreateInfo color_blending = {};
 	color_blending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
 	color_blending.logicOpEnable = VK_FALSE;
@@ -930,23 +925,26 @@ int main(int argc, char **argv)
 	color_blending.blendConstants[3] = 0.0f;
 
 
-
+	// How many dynamic states do we want.
+	// Without dynamic states, each time we want to change the draw line width, viewport, scissor, etc, we would have to rebuild the pipeline
+	// Here we define that insted of using the values defined here, we take the values recorded in the render pass command buffer recording
 	const uint32_t dynamic_state_count = 3;
-
+	// Define the various states we want to be dynamic
 	VkDynamicState dynamic_states[dynamic_state_count] = {
 		VK_DYNAMIC_STATE_VIEWPORT,
 		VK_DYNAMIC_STATE_SCISSOR,
 		VK_DYNAMIC_STATE_LINE_WIDTH
 	};
 
+	// Define the dynamic states
 	VkPipelineDynamicStateCreateInfo dynamic_state = {};
 	dynamic_state.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-	dynamic_state.pDynamicStates = dynamic_states;
-	dynamic_state.dynamicStateCount = dynamic_state_count;
+	dynamic_state.pDynamicStates = dynamic_states;								// Pointer to the states
+	dynamic_state.dynamicStateCount = dynamic_state_count;						// How many states do we have
 	dynamic_state.flags = 0;
 
 
-
+	// Create the entire pipeline create info structure
 	VkGraphicsPipelineCreateInfo pipeline_info = {};
 	pipeline_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 	pipeline_info.stageCount = shader_stage_count;
@@ -961,13 +959,13 @@ int main(int argc, char **argv)
 	pipeline_info.pDynamicState = &dynamic_state;
 	pipeline_info.layout = graphics_pipeline_layout;
 	pipeline_info.renderPass = renderpass;
-	pipeline_info.subpass = 0;
+	pipeline_info.subpass = 0; // Deifne what subpass this is, for now we only have one, but when post processing is added, there will be more
 	pipeline_info.basePipelineHandle = VK_NULL_HANDLE;
 	pipeline_info.basePipelineIndex = -1;
 	pipeline_info.flags = VK_PIPELINE_CREATE_ALLOW_DERIVATIVES_BIT;
 
 
-
+	// Create the pipeline
 	VkResult create_graphics_pipeline_result = vkCreateGraphicsPipelines(
 		device,
 		VK_NULL_HANDLE,
@@ -976,11 +974,11 @@ int main(int argc, char **argv)
 		nullptr,
 		&graphics_pipeline
 	);
+	// Was the pipeline created okay
 	assert(create_graphics_pipeline_result == VK_SUCCESS);
 
 
-	const unsigned int buffer_size = sizeof(float) * 1000;
-	// Vertex buffer
+	// Create the models vertex buffer
 	VkHelper::CreateBuffer(
 		device,                                                          // What device are we going to use to create the buffer
 		physical_device_mem_properties,                                  // What memory properties are avaliable on the device
@@ -1016,7 +1014,7 @@ int main(int argc, char **argv)
 
 
 
-	// Vertex buffer
+	// Create the models Index buffer
 	VkHelper::CreateBuffer(
 		device,                                                          // What device are we going to use to create the buffer
 		physical_device_mem_properties,                                  // What memory properties are avaliable on the device
@@ -1053,6 +1051,16 @@ int main(int argc, char **argv)
 
 
 	BuildCommandBuffers(graphics_command_buffers, swapchain_image_count);
+
+
+
+
+
+	/////////////////////////////////////////////////
+	///// Finished setting up Graphics Pipeline ///// 
+	/////////////////////////////////////////////////
+
+
 
 
 	while (window_open)
