@@ -28,3 +28,18 @@ Creating the mechanism that we will use to send messages to the GPU.
 
 ### [4 - Buffers](4-Buffers/)
 We create a buffer on the GPU, allocate and bind memory to it and show examples of reading and writing to and from it.
+
+### [5 - Descriptors](5-Descriptors/)
+Create a descriptor pool and descriptor set that later on will allow for the dynamic binding of resources to a pipeline
+
+### [6 - Swapchain](6-Swapchain/)
+Here we create the swapchain and all of its iamges for later rendering steps
+
+### [7 - Renderpass](7-Renderpass/)
+Create the render pass, this involves defining what the rendering order will be, how many post processes will there be, how many image attachments will be needed, etc
+
+### [8 - Present](8-Present/)
+Render a blank screen with a single color, here we focus on getting the rendering commands created and render a basic screen using them
+
+### [9 - GraphicsPipeline](9-GraphicsPipeline/)
+Create a basic graphics pipeline and render a triangle. Here we load a SPIRE-V Vertex and Fragment shader as well as walk through the various settings involved in the creation of a graphics pipeline
