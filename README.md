@@ -43,3 +43,6 @@ Render a blank screen with a single color, here we focus on getting the renderin
 
 ### [9 - GraphicsPipeline](9-GraphicsPipeline/)
 Create a basic graphics pipeline and render a triangle. Here we load a SPIRE-V Vertex and Fragment shader as well as walk through the various settings involved in the creation of a graphics pipeline
+
+### [10 - Texturing](10-Texturing/)
+Following on from the graphics pipeline tuturial, we create a simple quad and render a basic texture to it. Here we show loading a image from file using lodepng, creating a sampler for it and rendering it
