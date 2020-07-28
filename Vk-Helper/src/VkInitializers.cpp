@@ -333,3 +333,60 @@ VkPresentInfoKHR VkHelper::PresentInfoKHR(unsigned int wait_semaphore_count, VkS
 	info.pResults = nullptr;
 	return info;
 }
+
+VkDescriptorImageInfo VkHelper::DescriptorImageInfo(VkSampler sampler, VkImageView view, VkImageLayout layout)
+{
+	VkDescriptorImageInfo descriptorImageInfo = {};
+	// Provide the descriptor info the texture data it requires
+	descriptorImageInfo.sampler = sampler;
+	descriptorImageInfo.imageView = view;
+	descriptorImageInfo.imageLayout = layout;
+	return descriptorImageInfo;
+}
+
+VkDescriptorBufferInfo VkHelper::DescriptorBufferInfo(VkBuffer buffer, uint32_t size, VkDeviceSize offset)
+{
+	VkDescriptorBufferInfo buffer_info = {};
+	buffer_info.buffer = buffer;
+	buffer_info.offset = offset;
+	buffer_info.range = size;
+	return buffer_info;
+}
+
+VkWriteDescriptorSet VkHelper::WriteDescriptorSet(VkDescriptorSet& descriptor_set, VkDescriptorImageInfo& image_info, unsigned int binding)
+{
+	VkWriteDescriptorSet descriptorWrite = {};
+	descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	descriptorWrite.dstSet = descriptor_set;
+	descriptorWrite.dstBinding = binding;
+	descriptorWrite.dstArrayElement = 0;
+	descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	descriptorWrite.descriptorCount = 1;											// How many descriptors we are updating
+	descriptorWrite.pBufferInfo = VK_NULL_HANDLE;
+	descriptorWrite.pImageInfo = VK_NULL_HANDLE;
+	descriptorWrite.pTexelBufferView = VK_NULL_HANDLE;
+	descriptorWrite.pNext = VK_NULL_HANDLE;
+
+	static const int offset = offsetof(VkWriteDescriptorSet, pImageInfo);
+	// Transfer the VkWriteDescriptorSet into the VkDescriptorImageInfo
+	VkDescriptorImageInfo** data = reinterpret_cast<VkDescriptorImageInfo**>(reinterpret_cast<uint8_t*>(&descriptorWrite) + offset);
+	*data = &image_info;
+	return descriptorWrite;
+}
+
+VkWriteDescriptorSet VkHelper::WriteDescriptorSet(VkDescriptorSet& descriptor_set, VkDescriptorBufferInfo& buffer_info, unsigned int binding)
+{
+	VkWriteDescriptorSet descriptorWrite = {};
+	descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	descriptorWrite.dstSet = descriptor_set;
+	descriptorWrite.dstBinding = binding;
+	descriptorWrite.dstArrayElement = 0;
+	descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	descriptorWrite.descriptorCount = 1;											// How many descriptors we are updating
+	descriptorWrite.pBufferInfo = &buffer_info;
+	descriptorWrite.pImageInfo = VK_NULL_HANDLE;
+	descriptorWrite.pTexelBufferView = VK_NULL_HANDLE;
+	descriptorWrite.pNext = VK_NULL_HANDLE;
+
+	return descriptorWrite;
+}

@@ -27,16 +27,16 @@ Upon finding the GPU that we want to use, we next create a Vulkan Device instanc
 Creating the mechanism that we will use to send messages to the GPU.
 
 ### [4 - Buffers](4-Buffers/)
-We create a buffer on the GPU, allocate and bind memory to it and show examples of reading and writing to and from it.
+We create a buffer on the GPU, allocate and bind memory to it, and show examples of reading and writing to and from it.
 
 ### [5 - Descriptors](5-Descriptors/)
 Create a descriptor pool and descriptor set that later on will allow for the dynamic binding of resources to a pipeline
 
 ### [6 - Swapchain](6-Swapchain/)
-Here we create the swapchain and all of its iamges for later rendering steps
+Here we create the swapchain and all of its images for later rendering steps
 
 ### [7 - Renderpass](7-Renderpass/)
-Create the render pass, this involves defining what the rendering order will be, how many post processes will there be, how many image attachments will be needed, etc
+Create the render pass, this involves defining what the rendering order will be, how many post-processes will there be, how many image attachments will be needed, etc
 
 ### [8 - Present](8-Present/)
 Render a blank screen with a single color, here we focus on getting the rendering commands created and render a basic screen using them
@@ -45,4 +45,7 @@ Render a blank screen with a single color, here we focus on getting the renderin
 Create a basic graphics pipeline and render a triangle. Here we load a SPIRE-V Vertex and Fragment shader as well as walk through the various settings involved in the creation of a graphics pipeline
 
 ### [10 - Texturing](10-Texturing/)
-Following on from the graphics pipeline tuturial, we create a simple quad and render a basic texture to it. Here we show loading a image from file using lodepng, creating a sampler for it and rendering it
+Following on from the graphics pipeline tutorial, we create a simple quad and render a basic texture to it. Here we show loading an image from a file using lodepng, creating a sampler for it and rendering it
+
+### [11 - Camera](11-Camera/)
+Here we create a basic camera with a view and projection matrix. During this tutorial, we introduce two new helpful libraries that can help, GLM for vector and matrix maths and objloader to allow us to import more complex models easier

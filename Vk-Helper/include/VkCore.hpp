@@ -89,7 +89,7 @@ namespace VkHelper
 		uint32_t vertex_input_binding_description_count, const VkVertexInputBindingDescription* vertex_input_binding_descriptions,
 		uint32_t dynamic_state_count = 0, VkDynamicState* dynamic_states = nullptr,
 		VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VkPolygonMode polygon_mode = VK_POLYGON_MODE_FILL, float line_width = 1.0f,
-		VkCullModeFlags cull_mode = VK_CULL_MODE_BACK_BIT, VkBool32 depth_write_enable = VK_TRUE, VkBool32 depth_test_enable = VK_TRUE);
+		VkCullModeFlags cull_mode = VK_CULL_MODE_FRONT_BIT, VkBool32 depth_write_enable = VK_TRUE, VkBool32 depth_test_enable = VK_TRUE);
 
 
 

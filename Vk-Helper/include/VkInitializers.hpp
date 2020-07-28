@@ -53,4 +53,20 @@ namespace VkHelper
 	VkImageViewCreateInfo ImageViewCreate(VkImage image, VkFormat format, VkImageAspectFlags aspect_flags);
 
 	VkPresentInfoKHR PresentInfoKHR(unsigned int wait_semaphore_count, VkSemaphore* wait_semaphore,VkSwapchainKHR& swapchain);
+
+	VkDescriptorImageInfo DescriptorImageInfo(VkSampler sampler, VkImageView view, VkImageLayout layout);
+
+	VkDescriptorBufferInfo DescriptorBufferInfo(VkBuffer buffer, uint32_t size, VkDeviceSize offset);
+
+	VkWriteDescriptorSet WriteDescriptorSet(VkDescriptorSet& descriptor_set, VkDescriptorImageInfo& image_info, unsigned int binding);
+
+	VkWriteDescriptorSet WriteDescriptorSet(VkDescriptorSet& descriptor_set, VkDescriptorBufferInfo& buffer_info, unsigned int binding);
+
+
+
+
+
+
+
+
 }

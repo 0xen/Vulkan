@@ -36,6 +36,9 @@ add_subdirectory_with_folder("Third Party/SDL2" third_party/SDL2)
 
 include_directories(third_party/SDL2/include)
 
+add_subdirectory(third_party/glm)
+include_directories(third_party/glm)
+
 add_subdirectory("Vk-Helper")
 add_subdirectory("0-Instance")
 add_subdirectory("1-PhysicalDevice")
@@ -48,3 +51,4 @@ add_subdirectory("7-Renderpass")
 add_subdirectory("8-Present")
 add_subdirectory("9-GraphicsPipeline")
 add_subdirectory("10-Texturing")
+add_subdirectory("11-Camera")
