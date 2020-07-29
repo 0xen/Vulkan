@@ -49,3 +49,6 @@ Following on from the graphics pipeline tutorial, we create a simple quad and re
 
 ### [11 - Camera](11-Camera/)
 Here we create a basic camera with a view and projection matrix. During this tutorial, we introduce two new helpful libraries that can help, GLM for vector and matrix maths and objloader to allow us to import more complex models easier
+
+### [12 - IndirectDrawing](12-IndirectDrawing/)
+Indirect Drawing allows us to dynamicly update what we are rendering and how many instances of a model we are rendering without rebuilding the command buffers. In this example we create a array of model positions and dynamicly tell the GPU how many models we want to render
