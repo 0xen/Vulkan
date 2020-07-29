@@ -60,7 +60,7 @@ namespace VkHelper
 
 	VkWriteDescriptorSet WriteDescriptorSet(VkDescriptorSet& descriptor_set, VkDescriptorImageInfo& image_info, unsigned int binding);
 
-	VkWriteDescriptorSet WriteDescriptorSet(VkDescriptorSet& descriptor_set, VkDescriptorBufferInfo& buffer_info, unsigned int binding);
+	VkWriteDescriptorSet WriteDescriptorSet(VkDescriptorSet& descriptor_set, VkDescriptorType type, VkDescriptorBufferInfo& buffer_info, unsigned int binding);
 
 
 

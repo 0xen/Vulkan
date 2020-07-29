@@ -542,7 +542,7 @@ bool CheckSwapchainSupport(const VkPhysicalDevice & physical_device, const VkSur
 	return true;
 }
 
-VkSurfaceFormatKHR ChooseSwapchainSurfaceFormat(const VkSurfaceFormatKHR* formats, const uint32_t& format_count)
+VkSurfaceFormatKHR VkHelperChooseSwapchainSurfaceFormat(const VkSurfaceFormatKHR* formats, const uint32_t& format_count)
 {
 	// If there is one format and that format is VK_FORMAT_UNDEFINED, the vulkan dose not mind what we set as a format
 	if (format_count == 1 && formats[0].format == VK_FORMAT_UNDEFINED)
@@ -565,7 +565,7 @@ VkSurfaceFormatKHR ChooseSwapchainSurfaceFormat(const VkSurfaceFormatKHR* format
 }
 
 
-VkPresentModeKHR ChooseSwapPresentMode(const VkPresentModeKHR* modes, const uint32_t& mode_count)
+VkPresentModeKHR VkHelperChooseSwapPresentMode(const VkPresentModeKHR* modes, const uint32_t& mode_count)
 {
 	// Loop through modes
 	for (int i = 0; i < mode_count; i++)
@@ -616,8 +616,8 @@ VkSwapchainKHR VkHelper::CreateSwapchain(const VkPhysicalDevice & physical_devic
 	assert(hasSupport);
 
 
-	surface_format = ChooseSwapchainSurfaceFormat(surface_formats, surface_format_count);
-	present_mode = ChooseSwapPresentMode(present_modes, present_mode_count);
+	surface_format = VkHelperChooseSwapchainSurfaceFormat(surface_formats, surface_format_count);
+	present_mode = VkHelperChooseSwapPresentMode(present_modes, present_mode_count);
 
 	VkExtent2D extent = ChooseSwapExtent(surface_capabilities, window_width, window_height);
 

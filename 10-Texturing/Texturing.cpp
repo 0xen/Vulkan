@@ -57,8 +57,8 @@ VertexData verticies[4] =
 };
 
 uint32_t indicies[6] = {
-	1,0,2,
-	2,0,3
+	0,1,2,
+	0,2,3
 };
 
 VkDeviceSize vertex_buffer_size = sizeof(VertexData) * 4;
@@ -575,7 +575,7 @@ void CreateSquareModel()
 		vertex_buffer,                                                   // What buffer are we going to be creating
 		vertex_buffer_memory,                                            // The output for the buffer memory
 		vertex_buffer_size,                                              // How much memory we wish to allocate on the GPU
-		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,                            // What type of buffer do we want. Buffers can have multiple types, for example, uniform & vertex buffer.
+		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,                               // What type of buffer do we want. Buffers can have multiple types, for example, uniform & vertex buffer.
 																		 // for now we want to keep the buffer spetilised to one type as this will allow vulkan to optimize the data.
 		VK_SHARING_MODE_EXCLUSIVE,                                       // There are two modes, exclusive and concurrent. Defines if it can concurrently be used by multiple queue
 																		 // families at the same time
@@ -609,7 +609,7 @@ void CreateSquareModel()
 		index_buffer,                                                    // What buffer are we going to be creating
 		index_buffer_memory,                                             // The output for the buffer memory
 		index_buffer_size,                                               // How much memory we wish to allocate on the GPU
-		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,                            // What type of buffer do we want. Buffers can have multiple types, for example, uniform & vertex buffer.
+		VK_BUFFER_USAGE_INDEX_BUFFER_BIT,                                // What type of buffer do we want. Buffers can have multiple types, for example, uniform & vertex buffer.
 																		 // for now we want to keep the buffer spetilised to one type as this will allow vulkan to optimize the data.
 		VK_SHARING_MODE_EXCLUSIVE,                                       // There are two modes, exclusive and concurrent. Defines if it can concurrently be used by multiple queue
 																		 // families at the same time

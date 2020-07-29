@@ -147,8 +147,6 @@ std::unique_ptr<VkCommandBuffer> graphics_command_buffers = nullptr;
 
 VkPipeline graphics_pipeline = VK_NULL_HANDLE;
 VkPipelineLayout graphics_pipeline_layout = VK_NULL_HANDLE;
-VkShaderModule vertex_shader_module = VK_NULL_HANDLE;
-VkShaderModule fragment_shader_module = VK_NULL_HANDLE;
 
 
 VkBuffer vertex_buffer = VK_NULL_HANDLE;
@@ -308,7 +306,7 @@ void Setup()
 	instance = VkHelper::CreateInstance(
 		instance_extensions, extention_count,
 		instance_layers, layer_count,
-		"11 - Camera", VK_MAKE_VERSION(1, 0, 0),
+		"12 - Indirect Drawing", VK_MAKE_VERSION(1, 0, 0),
 		"Vulkan", VK_MAKE_VERSION(1, 0, 0),
 		VK_MAKE_VERSION(1, 1, 108));
 
@@ -422,7 +420,7 @@ void Setup()
 		vertex_buffer,                                                   // What buffer are we going to be creating
 		vertex_buffer_memory,                                            // The output for the buffer memory
 		vertex_buffer_size,                                              // How much memory we wish to allocate on the GPU
-		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,                            // What type of buffer do we want. Buffers can have multiple types, for example, uniform & vertex buffer.
+		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,                            // What type of buffer do we want. Buffers can have multiple types, for example, uniform & vertex buffer.
 																		 // for now we want to keep the buffer specialized to one type as this will allow vulkan to optimize the data.
 		VK_SHARING_MODE_EXCLUSIVE,                                       // There are two modes, exclusive and concurrent. Defines if it can concurrently be used by multiple queue
 																		 // families at the same time
@@ -449,7 +447,7 @@ void Setup()
 		index_buffer,                                                    // What buffer are we going to be creating
 		index_buffer_memory,                                             // The output for the buffer memory
 		index_buffer_size,                                               // How much memory we wish to allocate on the GPU
-		VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_INDEX_BUFFER_BIT,                            // What type of buffer do we want. Buffers can have multiple types, for example, uniform & vertex buffer.
+		VK_BUFFER_USAGE_INDEX_BUFFER_BIT,                            // What type of buffer do we want. Buffers can have multiple types, for example, uniform & vertex buffer.
 																		 // for now we want to keep the buffer specialized to one type as this will allow vulkan to optimize the data.
 		VK_SHARING_MODE_EXCLUSIVE,                                       // There are two modes, exclusive and concurrent. Defines if it can concurrently be used by multiple queue
 																		 // families at the same time
@@ -595,7 +593,7 @@ void Setup()
 		0
 	);
 
-	VkWriteDescriptorSet descriptorWrite = VkHelper::WriteDescriptorSet(camera_descriptor_set, descriptorImageInfo, 0);
+	VkWriteDescriptorSet descriptorWrite = VkHelper::WriteDescriptorSet(camera_descriptor_set, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, descriptorImageInfo, 0);
 
 	// Update the descriptor with the texture data
 	vkUpdateDescriptorSets(
@@ -914,17 +912,6 @@ void DestroyGraphicsPipeline()
 		nullptr
 	);
 
-	vkDestroyShaderModule(
-		device,
-		vertex_shader_module,
-		nullptr
-	);
-
-	vkDestroyShaderModule(
-		device,
-		fragment_shader_module,
-		nullptr
-	);
 }
 
 STexture CreateTexture(const char* path)

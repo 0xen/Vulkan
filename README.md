@@ -51,4 +51,7 @@ Following on from the graphics pipeline tutorial, we create a simple quad and re
 Here we create a basic camera with a view and projection matrix. During this tutorial, we introduce two new helpful libraries that can help, GLM for vector and matrix maths and objloader to allow us to import more complex models easier
 
 ### [12 - IndirectDrawing](12-IndirectDrawing/)
-Indirect Drawing allows us to dynamicly update what we are rendering and how many instances of a model we are rendering without rebuilding the command buffers. In this example we create a array of model positions and dynamicly tell the GPU how many models we want to render
+Indirect Drawing allows us to dynamically update what we are rendering and how many instances of a model we are rendering without rebuilding the command buffers. In this example, we create an array of model positions and dynamically tell the GPU how many models we want to render
+
+### [13 - ComputePipeline](13-ComputePipeline/)
+Compute pipelines are very useful for a whole range of tasks within rendering, it can be used for many tasks that can be highly parallelized, such as a particle effect system. In this example, we show you a stripped-down version of the renderer that exposes what goes on with the compute pipeline. We create an array of floating-point numbers and get the GPU to multiply them by a fixed amount. Future examples will expand on this

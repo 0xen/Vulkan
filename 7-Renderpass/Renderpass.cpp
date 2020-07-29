@@ -61,6 +61,15 @@ uint32_t swapchain_image_count;
 std::unique_ptr<VkImageView> swapchain_image_views;
 
 
+struct FrameBufferAttachment
+{
+	VkImage image;
+	VkDeviceMemory memory;
+	VkImageView view;
+	VkFormat format;
+	VkSampler sampler;
+};
+
 struct VulkanAttachments
 {
 	FrameBufferAttachment color, depth;
@@ -448,15 +457,6 @@ VkFormat FindSupportedFormat(VkPhysicalDevice physical_device, const VkFormat* c
 	assert(0 && "All formats are not supported");
 	return VK_FORMAT_UNDEFINED;
 }
-
-struct FrameBufferAttachment
-{
-	VkImage image;
-	VkDeviceMemory memory;
-	VkImageView view;
-	VkFormat format;
-	VkSampler sampler;
-};
 
 VkCommandBuffer BeginSingleTimeCommands(VkCommandPool command_pool)
 {

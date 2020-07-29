@@ -374,14 +374,14 @@ VkWriteDescriptorSet VkHelper::WriteDescriptorSet(VkDescriptorSet& descriptor_se
 	return descriptorWrite;
 }
 
-VkWriteDescriptorSet VkHelper::WriteDescriptorSet(VkDescriptorSet& descriptor_set, VkDescriptorBufferInfo& buffer_info, unsigned int binding)
+VkWriteDescriptorSet VkHelper::WriteDescriptorSet(VkDescriptorSet& descriptor_set, VkDescriptorType type, VkDescriptorBufferInfo& buffer_info, unsigned int binding)
 {
 	VkWriteDescriptorSet descriptorWrite = {};
 	descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
 	descriptorWrite.dstSet = descriptor_set;
 	descriptorWrite.dstBinding = binding;
 	descriptorWrite.dstArrayElement = 0;
-	descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	descriptorWrite.descriptorType = type;
 	descriptorWrite.descriptorCount = 1;											// How many descriptors we are updating
 	descriptorWrite.pBufferInfo = &buffer_info;
 	descriptorWrite.pImageInfo = VK_NULL_HANDLE;
