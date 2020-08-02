@@ -78,7 +78,7 @@ void Setup()
 	instance = VkHelper::CreateInstance(
 		instance_extensions, extention_count,
 		instance_layers, layer_count,
-		"13 - Compute Pipeline", VK_MAKE_VERSION(1, 0, 0),
+		"Compute Pipeline", VK_MAKE_VERSION(1, 0, 0),
 		"Vulkan", VK_MAKE_VERSION(1, 0, 0),
 		VK_MAKE_VERSION(1, 1, 108));
 
@@ -462,7 +462,7 @@ int main(int argc, char **argv)
 	//////////////////////////////////
 
 
-	std::unique_ptr<VkFence> compute_fence = nullptr;
+	std::unique_ptr<VkFence> compute_fence = std::unique_ptr<VkFence>();
 	// Create a new fence to make sure the execution of the command buffer was successful 
 	VkHelper::CreateFence(
 		device,

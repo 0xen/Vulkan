@@ -1413,6 +1413,95 @@ VkPipeline VkHelper::CreateGraphicsPipeline(const VkPhysicalDevice & physical_de
 	return graphics_pipeline;
 }
 
+VkPipeline VkHelper::CreateComputePipeline(const VkDevice& device, VkPipelineLayout& compute_pipeline_layout, 
+	const char* shader_path, VkShaderModule& shader_module, 
+	uint32_t descriptor_set_layout_count, const VkDescriptorSetLayout* descriptor_set_layout)
+{
+
+	VkPipeline compute_pipeline = VK_NULL_HANDLE;
+
+
+	// Define the new pipeline layout that we will be creating
+	VkPipelineLayoutCreateInfo pipeline_layout_info = {};
+	pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	pipeline_layout_info.setLayoutCount = descriptor_set_layout_count;
+	pipeline_layout_info.pSetLayouts = descriptor_set_layout;
+	pipeline_layout_info.pushConstantRangeCount = 0;
+	pipeline_layout_info.pPushConstantRanges = 0;
+
+
+	// Create the new pipeline layout
+	VkResult create_pipeline_result = vkCreatePipelineLayout(
+		device,
+		&pipeline_layout_info,
+		nullptr,
+		&compute_pipeline_layout
+	);
+
+	// Was the pipeline layout created correctly
+	assert(create_pipeline_result == VK_SUCCESS);
+
+
+	char* shader_data = nullptr;
+	unsigned int shader_size = 0;
+
+	// Load the shader from file
+	VkHelper::ReadShaderFile(
+		shader_path,
+		shader_data,
+		shader_size
+	);
+
+
+	// Create the shader module
+	VkShaderModuleCreateInfo shader_module_create_info = {};
+	shader_module_create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	shader_module_create_info.codeSize = shader_size;
+	shader_module_create_info.pCode = reinterpret_cast<const uint32_t*>(shader_data);
+
+
+	// Create the shader
+	VkResult create_shader_module = vkCreateShaderModule(
+		device,
+		&shader_module_create_info,
+		nullptr,
+		&shader_module
+	);
+	// Validate the shader module
+	assert(create_shader_module == VK_SUCCESS);
+
+	// Destroy the CPU side memory
+	delete[] shader_data;
+
+
+	// Define the type of shader and what function should be called within the shader
+	VkPipelineShaderStageCreateInfo shader_stage_create_info = {};
+	shader_stage_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	shader_stage_create_info.stage = VK_SHADER_STAGE_COMPUTE_BIT;
+	shader_stage_create_info.module = shader_module;
+	shader_stage_create_info.pName = "main";
+
+	// Create the info structure needed to finalize the creation of the pipeline
+	VkComputePipelineCreateInfo compute_pipeline_create_info{};
+	compute_pipeline_create_info.sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO;
+	compute_pipeline_create_info.layout = compute_pipeline_layout;
+	compute_pipeline_create_info.stage = shader_stage_create_info;
+
+	// Create the compute pipeline
+	VkResult create_compute_pipeline = vkCreateComputePipelines(
+		device,
+		0,
+		1,
+		&compute_pipeline_create_info,
+		nullptr,
+		&compute_pipeline
+	);
+
+	assert(create_compute_pipeline == VK_SUCCESS);
+
+	return compute_pipeline;
+}
+
 void VkHelper::CreateImageSampler(const VkDevice& device, const VkImage& image, VkFormat format, VkImageView& imageView, VkSampler& sampler)
 {
 	VkSamplerCreateInfo sampler_info = SamplerCreateInfo();

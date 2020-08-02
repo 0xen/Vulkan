@@ -55,3 +55,6 @@ Indirect Drawing allows us to dynamically update what we are rendering and how m
 
 ### [13 - ComputePipeline](13-ComputePipeline/)
 Compute pipelines are very useful for a whole range of tasks within rendering, it can be used for many tasks that can be highly parallelized, such as a particle effect system. In this example, we show you a stripped-down version of the renderer that exposes what goes on with the compute pipeline. We create an array of floating-point numbers and get the GPU to multiply them by a fixed amount. Future examples will expand on this
+
+### [14 - ComputeParticleSystem](14-ComputeParticleSystem/)
+In this example, we create a particle system. This particle system takes advantage of compute shaders from the previous project and allows for the GPU to update the positions and color of the particles. The benefit of using a GPU based particle system over a CPU based on is after every update of a CPU based particle system, we have to transfer the data over to the GPU. This is fine with small particle systems, but if we end up dealing with thousands of systems each with thousands of particles, it will end up causing a bottleneck. Instead, if we use GPU updated particles, each particle gets updated highly multithreaded on the GPU with no need to transfer data between the CPU and GPU memory.

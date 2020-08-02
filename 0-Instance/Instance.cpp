@@ -55,7 +55,7 @@ int main(int argc, char **argv)
 
 	VkApplicationInfo app_info = {};
 	app_info.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-	app_info.pApplicationName = "0 - Instance";                  // Application name
+	app_info.pApplicationName = "Instance";						 // Application name
 	app_info.applicationVersion = VK_MAKE_VERSION(1, 0, 0);	     // Application version
 	app_info.pEngineName = "Vulkan";                             // Engine name
 	app_info.engineVersion = VK_MAKE_VERSION(1, 0, 0);           // Engine version

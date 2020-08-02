@@ -27,7 +27,7 @@
 #include <VkCore.hpp>
 
 
-#define MODEL_COUNT 50
+#define PARTICLE_COUNT 50
 
 struct SBuffer
 {
@@ -61,11 +61,11 @@ struct SCamera
 	glm::mat4 camera_position;
 };
 
-class VertexData
+class SVertexData
 {
 public:
-	VertexData() {};
-	VertexData(glm::vec3 position, glm::vec3 normal, glm::vec3 color, glm::vec2 uv, unsigned int materialID) : pos(position), texCoord(uv), nrm(normal), color(color), matID(materialID) {}
+	SVertexData() {};
+	SVertexData(glm::vec3 position, glm::vec3 normal, glm::vec3 color, glm::vec2 uv, unsigned int materialID) : pos(position), texCoord(uv), nrm(normal), color(color), matID(materialID) {}
 	glm::vec3 pos;
 	glm::vec3 nrm;
 	glm::vec3 color;
@@ -88,7 +88,7 @@ const unsigned int index_count = 100000;
 unsigned int used_verticies = 0;
 unsigned int used_index = 0;
 
-VkDeviceSize vertex_buffer_size = sizeof(VertexData) * verticies_count;
+VkDeviceSize particle_vertex_buffer_size = sizeof(SVertexData) * verticies_count;
 VkDeviceSize index_buffer_size = sizeof(uint32_t) * index_count;
 
 void CreateRenderResources();
@@ -144,15 +144,16 @@ VkPipelineStageFlags wait_stages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
 
 std::unique_ptr<VkCommandBuffer> graphics_command_buffers = nullptr;
 
-
+const unsigned int shader_stage_count = 2;
+std::unique_ptr<VkShaderModule> graphics_shader_modules;
 VkPipeline graphics_pipeline = VK_NULL_HANDLE;
 VkPipelineLayout graphics_pipeline_layout = VK_NULL_HANDLE;
 
 
-VkBuffer vertex_buffer = VK_NULL_HANDLE;
-VkDeviceMemory vertex_buffer_memory = VK_NULL_HANDLE;
+VkBuffer particle_vertex_buffer = VK_NULL_HANDLE;
+VkDeviceMemory particle_vertex_buffer_memory = VK_NULL_HANDLE;
 // Raw pointer that will point to GPU memory
-void* vertex_mapped_buffer_memory = nullptr;
+void* particle_vertex_mapped_buffer_memory = nullptr;
 
 
 VkBuffer index_buffer = VK_NULL_HANDLE;
@@ -172,7 +173,7 @@ VkDescriptorSet texture_descriptor_set;
 
 ModelInstance octopus_model;
 
-glm::mat4 model_positions[MODEL_COUNT];
+glm::mat4 model_positions[PARTICLE_COUNT];
 SBuffer model_position_buffer;
 
 VkDrawIndexedIndirectCommand indirect_draw_command;
@@ -306,7 +307,7 @@ void Setup()
 	instance = VkHelper::CreateInstance(
 		instance_extensions, extention_count,
 		instance_layers, layer_count,
-		"12 - Indirect Drawing", VK_MAKE_VERSION(1, 0, 0),
+		"Indirect Drawing", VK_MAKE_VERSION(1, 0, 0),
 		"Vulkan", VK_MAKE_VERSION(1, 0, 0),
 		VK_MAKE_VERSION(1, 1, 108));
 
@@ -417,9 +418,9 @@ void Setup()
 	VkHelper::CreateBuffer(
 		device,                                                          // What device are we going to use to create the buffer
 		physical_device_mem_properties,                                  // What memory properties are available on the device
-		vertex_buffer,                                                   // What buffer are we going to be creating
-		vertex_buffer_memory,                                            // The output for the buffer memory
-		vertex_buffer_size,                                              // How much memory we wish to allocate on the GPU
+		particle_vertex_buffer,                                                   // What buffer are we going to be creating
+		particle_vertex_buffer_memory,                                            // The output for the buffer memory
+		particle_vertex_buffer_size,                                              // How much memory we wish to allocate on the GPU
 		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,                            // What type of buffer do we want. Buffers can have multiple types, for example, uniform & vertex buffer.
 																		 // for now we want to keep the buffer specialized to one type as this will allow vulkan to optimize the data.
 		VK_SHARING_MODE_EXCLUSIVE,                                       // There are two modes, exclusive and concurrent. Defines if it can concurrently be used by multiple queue
@@ -430,11 +431,11 @@ void Setup()
 	// Get the pointer to the GPU memory
 	VkResult vertex_mapped_memory_result = vkMapMemory(
 		device,                                                         // The device that the memory is on
-		vertex_buffer_memory,                                           // The device memory instance
+		particle_vertex_buffer_memory,                                           // The device memory instance
 		0,                                                              // Offset from the memory starts that we are accessing
-		vertex_buffer_size,                                             // How much memory are we accessing
+		particle_vertex_buffer_size,                                             // How much memory are we accessing
 		0,                                                              // Flags (we don't need this for basic buffers)
-		&vertex_mapped_buffer_memory                                    // The return for the memory pointer
+		&particle_vertex_mapped_buffer_memory                                    // The return for the memory pointer
 	);
 
 	// Could we map the GPU memory to our CPU accessible pointer
@@ -652,20 +653,20 @@ void Destroy()
 	// Now we unmap the data
 	vkUnmapMemory(
 		device,
-		vertex_buffer_memory
+		particle_vertex_buffer_memory
 	);
 
 	// Clean up the buffer data
 	vkDestroyBuffer(
 		device,
-		vertex_buffer,
+		particle_vertex_buffer,
 		nullptr
 	);
 
 	// Free the memory that was allocated for the buffer
 	vkFreeMemory(
 		device,
-		vertex_buffer_memory,
+		particle_vertex_buffer_memory,
 		nullptr
 	);
 
@@ -752,25 +753,25 @@ void CreateGraphicsPipeline()
 	vertex_input_attribute_descriptions.get()[0].binding = 0;								// What vertex input binding are we talking about
 	vertex_input_attribute_descriptions.get()[0].location = 0;								// Inside the binding what is its location id
 	vertex_input_attribute_descriptions.get()[0].format = VK_FORMAT_R32G32B32_SFLOAT;		// What format is the data coming in as
-	vertex_input_attribute_descriptions.get()[0].offset = offsetof(VertexData, pos);	    // Within the whole structure of the data packet, where dose it start in memory
+	vertex_input_attribute_descriptions.get()[0].offset = offsetof(SVertexData, pos);	    // Within the whole structure of the data packet, where dose it start in memory
 
 	// Used to store the normal data of the vertex
 	vertex_input_attribute_descriptions.get()[1].binding = 0;								// What vertex input binding are we talking about
 	vertex_input_attribute_descriptions.get()[1].location = 1;								// Inside the binding what is its location id
 	vertex_input_attribute_descriptions.get()[1].format = VK_FORMAT_R32G32B32_SFLOAT;		// What format is the data coming in as
-	vertex_input_attribute_descriptions.get()[1].offset = offsetof(VertexData, nrm);	    // Within the whole structure of the data packet, where dose it start in memory
+	vertex_input_attribute_descriptions.get()[1].offset = offsetof(SVertexData, nrm);	    // Within the whole structure of the data packet, where dose it start in memory
 
 	// Used to store the color data of the vertex
 	vertex_input_attribute_descriptions.get()[2].binding = 0;								// What vertex input binding are we talking about
 	vertex_input_attribute_descriptions.get()[2].location = 2;								// Inside the binding what is its location id
 	vertex_input_attribute_descriptions.get()[2].format = VK_FORMAT_R32G32B32_SFLOAT;		// What format is the data coming in as
-	vertex_input_attribute_descriptions.get()[2].offset = offsetof(VertexData, color);	    // Within the whole structure of the data packet, where dose it start in memory
+	vertex_input_attribute_descriptions.get()[2].offset = offsetof(SVertexData, color);	    // Within the whole structure of the data packet, where dose it start in memory
 
 	// Used to store the texture data of the vertex
 	vertex_input_attribute_descriptions.get()[3].binding = 0;								// What vertex input binding are we talking about
 	vertex_input_attribute_descriptions.get()[3].location = 3;								// Inside the binding what is its location id
 	vertex_input_attribute_descriptions.get()[3].format = VK_FORMAT_R32G32_SFLOAT;	    	// What format is the data coming in as
-	vertex_input_attribute_descriptions.get()[3].offset = offsetof(VertexData, texCoord);	// Within the whole structure of the data packet, where dose it start in memory
+	vertex_input_attribute_descriptions.get()[3].offset = offsetof(SVertexData, texCoord);	// Within the whole structure of the data packet, where dose it start in memory
 
 
 
@@ -804,15 +805,12 @@ void CreateGraphicsPipeline()
 
 	vertex_input_binding_descriptions.get()[0].binding = 0;
 	vertex_input_binding_descriptions.get()[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-	vertex_input_binding_descriptions.get()[0].stride = sizeof(VertexData);
+	vertex_input_binding_descriptions.get()[0].stride = sizeof(SVertexData);
 
 	// We want to pass over the models matrix once per draw (VK_VERTEX_INPUT_RATE_INSTANCE)
 	vertex_input_binding_descriptions.get()[1].binding = 1;
 	vertex_input_binding_descriptions.get()[1].inputRate = VK_VERTEX_INPUT_RATE_INSTANCE;
 	vertex_input_binding_descriptions.get()[1].stride = sizeof(glm::mat4);
-
-	// How many shaders will the pipeline use
-	const unsigned int shader_stage_count = 2;
 
 	const char* shader_paths[shader_stage_count]{
 		"../../Data/Shaders/12-IndirectDrawing/vert.spv",
@@ -823,7 +821,7 @@ void CreateGraphicsPipeline()
 		VK_SHADER_STAGE_VERTEX_BIT,
 		VK_SHADER_STAGE_FRAGMENT_BIT
 	};
-	std::unique_ptr<VkShaderModule> sphere_shader_modules = std::unique_ptr<VkShaderModule>(new VkShaderModule[shader_stage_count]);
+	graphics_shader_modules = std::unique_ptr<VkShaderModule>(new VkShaderModule[shader_stage_count]);
 
 	const uint32_t dynamic_state_count = 3;
 
@@ -848,7 +846,7 @@ void CreateGraphicsPipeline()
 		shader_stage_count,
 		shader_paths,
 		shader_stages_bits,
-		sphere_shader_modules.get(),
+		graphics_shader_modules.get(),
 		descriptor_set_layout_count,
 		descriptor_set_layout,
 		vertex_input_attribute_description_count,
@@ -911,7 +909,14 @@ void DestroyGraphicsPipeline()
 		graphics_pipeline_layout,
 		nullptr
 	);
-
+	for (int i = 0; i < shader_stage_count; i++)
+	{
+		vkDestroyShaderModule(
+			device,
+			graphics_shader_modules.get()[i],
+			nullptr
+		);
+	}
 }
 
 STexture CreateTexture(const char* path)
@@ -1152,7 +1157,7 @@ void SetAlbedoTexture(STexture& texture)
 void CreateModel(const char* path, ModelInstance& model_instance)
 {
 
-	ObjLoader<VertexData> loader;
+	ObjLoader<SVertexData> loader;
 	loader.loadModel(path);
 
 	model_instance.vertex_offset = used_verticies;
@@ -1171,9 +1176,9 @@ void CreateModel(const char* path, ModelInstance& model_instance)
 
 	// First we copy the example data to the GPU
 	memcpy(
-		vertex_mapped_buffer_memory,                                         // The destination for our memory (GPU)
+		particle_vertex_mapped_buffer_memory,                                         // The destination for our memory (GPU)
 		loader.m_vertices.data(),                                            // Source for the memory (CPU-Ram)
-		model_instance.vertex_count * sizeof(VertexData)                     // How much data we are transferring
+		model_instance.vertex_count * sizeof(SVertexData)                     // How much data we are transferring
 	);
 
 
@@ -1368,7 +1373,7 @@ void BuildCommandBuffers(std::unique_ptr<VkCommandBuffer>& command_buffers, cons
 			command_buffers.get()[i],
 			0,
 			1,
-			&vertex_buffer,
+			&particle_vertex_buffer,
 			offsets
 		);
 
@@ -1527,7 +1532,7 @@ int main(int argc, char **argv)
 
 	// Loop through the models and randomly give them a position in space
 	// and scale them down to 30% of there size
-	for (int i = 0; i < MODEL_COUNT; i++)
+	for (int i = 0; i < PARTICLE_COUNT; i++)
 	{
 		model_positions[i] = glm::mat4(1.0f);
 		glm::vec3 test = glm::vec3(
@@ -1539,7 +1544,7 @@ int main(int argc, char **argv)
 		model_positions[i] = glm::scale(model_positions[i], glm::vec3(0.3f,0.3f,0.3f));
 	}
 
-	VkDeviceSize model_position_buffer_size = sizeof(glm::mat4) * MODEL_COUNT;
+	VkDeviceSize model_position_buffer_size = sizeof(glm::mat4) * PARTICLE_COUNT;
 
 	VkHelper::CreateBuffer(
 		device,                                                          // What device are we going to use to create the buffer
@@ -1588,7 +1593,7 @@ int main(int argc, char **argv)
 	indirect_draw_command.firstIndex = octopus_model.index_offset;		// How far along the index buffer should we offset
 	indirect_draw_command.firstInstance = 0;							// If we are rendering a range of models (which we are), whats the first model index we want to render?
 	indirect_draw_command.indexCount = octopus_model.index_count;		// How many indexes are we wanting to render? 3 per triangle normally
-	indirect_draw_command.instanceCount = MODEL_COUNT;					// How many models are we wanting to render? Each model gets a position from the position
+	indirect_draw_command.instanceCount = PARTICLE_COUNT;					// How many models are we wanting to render? Each model gets a position from the position
 																		// array allocated to it.
 	indirect_draw_command.vertexOffset = octopus_model.vertex_offset;	// How much should the vertex be offset?
 

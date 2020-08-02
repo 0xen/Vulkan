@@ -91,7 +91,8 @@ namespace VkHelper
 		VkPrimitiveTopology topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST, VkPolygonMode polygon_mode = VK_POLYGON_MODE_FILL, float line_width = 1.0f,
 		VkCullModeFlags cull_mode = VK_CULL_MODE_FRONT_BIT, VkBool32 depth_write_enable = VK_TRUE, VkBool32 depth_test_enable = VK_TRUE);
 
-
+	VkPipeline CreateComputePipeline(const VkDevice& device, VkPipelineLayout& compute_pipeline_layout,
+		const char* shader_path, VkShaderModule& shader_module, uint32_t descriptor_set_layout_count, const VkDescriptorSetLayout* descriptor_set_layout);
 
 	void CreateImageSampler(const VkDevice& device, const VkImage& image, VkFormat format, VkImageView& imageView, VkSampler& sampler);
 

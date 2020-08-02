@@ -15,7 +15,7 @@
 #include <VkCore.hpp>
 
 
-struct VertexData
+struct SVertexData
 {
 	float position[3];
 	float color[3];
@@ -48,7 +48,7 @@ struct STexture
 	VkSampler sampler;
 };
 
-VertexData verticies[4] =
+SVertexData particle_verticies[4] =
 {
 	{{-0.5f,-0.5f,0.0f},{1.0f,0.0f,0.0f},{0.0f,0.0f}},
 	{{-0.5f,0.5f,0.0f},{1.0f,0.0f,0.0f},{0.0f,1.0f}},
@@ -61,7 +61,7 @@ uint32_t indicies[6] = {
 	0,2,3
 };
 
-VkDeviceSize vertex_buffer_size = sizeof(VertexData) * 4;
+VkDeviceSize particle_vertex_buffer_size = sizeof(SVertexData) * 4;
 VkDeviceSize index_buffer_size = sizeof(uint32_t) * 6;
 
 void CreateRenderResources();
@@ -117,17 +117,16 @@ VkPipelineStageFlags wait_stages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
 
 std::unique_ptr<VkCommandBuffer> graphics_command_buffers = nullptr;
 
-
+const unsigned int shader_stage_count = 2;
+std::unique_ptr<VkShaderModule> graphics_shader_modules;
 VkPipeline graphics_pipeline = VK_NULL_HANDLE;
 VkPipelineLayout graphics_pipeline_layout = VK_NULL_HANDLE;
-VkShaderModule vertex_shader_module = VK_NULL_HANDLE;
-VkShaderModule fragment_shader_module = VK_NULL_HANDLE;
 
 
-VkBuffer vertex_buffer = VK_NULL_HANDLE;
-VkDeviceMemory vertex_buffer_memory = VK_NULL_HANDLE;
+VkBuffer particle_vertex_buffer = VK_NULL_HANDLE;
+VkDeviceMemory particle_vertex_buffer_memory = VK_NULL_HANDLE;
 // Raw pointer that will point to GPU memory
-void* vertex_mapped_buffer_memory = nullptr;
+void* particle_vertex_mapped_buffer_memory = nullptr;
 
 
 VkBuffer index_buffer = VK_NULL_HANDLE;
@@ -248,7 +247,7 @@ void Setup()
 	instance = VkHelper::CreateInstance(
 		instance_extensions, extention_count,
 		instance_layers, layer_count,
-		"9 - Graphics Pipeline", VK_MAKE_VERSION(1, 0, 0),
+		"Texturing", VK_MAKE_VERSION(1, 0, 0),
 		"Vulkan", VK_MAKE_VERSION(1, 0, 0),
 		VK_MAKE_VERSION(1, 1, 108));
 
@@ -432,17 +431,17 @@ void CreateGraphicsPipeline()
 	vertex_input_attribute_descriptions.get()[0].binding = 0;								// What vertex input binding are we talking about
 	vertex_input_attribute_descriptions.get()[0].location = 0;								// Inside the binding what is its location id
 	vertex_input_attribute_descriptions.get()[0].format = VK_FORMAT_R32G32B32_SFLOAT;		// What format is the data coming in as
-	vertex_input_attribute_descriptions.get()[0].offset = offsetof(VertexData, position);	// Withn the whole structure of the data packet, where dose it start in memory
+	vertex_input_attribute_descriptions.get()[0].offset = offsetof(SVertexData, position);	// Withn the whole structure of the data packet, where dose it start in memory
 
 	vertex_input_attribute_descriptions.get()[1].binding = 0;								// What vertex input binding are we talking about
 	vertex_input_attribute_descriptions.get()[1].location = 1;								// Inside the binding what is its location id
 	vertex_input_attribute_descriptions.get()[1].format = VK_FORMAT_R32G32B32_SFLOAT;		// What format is the data coming in as
-	vertex_input_attribute_descriptions.get()[1].offset = offsetof(VertexData, color);		// Withn the whole structure of the data packet, where dose it start in memory
+	vertex_input_attribute_descriptions.get()[1].offset = offsetof(SVertexData, color);		// Withn the whole structure of the data packet, where dose it start in memory
 
 	vertex_input_attribute_descriptions.get()[2].binding = 0;								// What vertex input binding are we talking about
 	vertex_input_attribute_descriptions.get()[2].location = 2;								// Inside the binding what is its location id
 	vertex_input_attribute_descriptions.get()[2].format = VK_FORMAT_R32G32_SFLOAT;			// What format is the data coming in as
-	vertex_input_attribute_descriptions.get()[2].offset = offsetof(VertexData, uv);		// Withn the whole structure of the data packet, where dose it start in memory
+	vertex_input_attribute_descriptions.get()[2].offset = offsetof(SVertexData, uv);		// Withn the whole structure of the data packet, where dose it start in memory
 
 
 	const uint32_t vertex_input_binding_description_count = 1;
@@ -452,10 +451,7 @@ void CreateGraphicsPipeline()
 
 	vertex_input_binding_descriptions.get()[0].binding = 0;
 	vertex_input_binding_descriptions.get()[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-	vertex_input_binding_descriptions.get()[0].stride = sizeof(VertexData);
-
-	// How many shaders will the pipeline use
-	const unsigned int shader_stage_count = 2;
+	vertex_input_binding_descriptions.get()[0].stride = sizeof(SVertexData);
 
 	const char* shader_paths[shader_stage_count]{
 		"../../Data/Shaders/10-Texturing/vert.spv",
@@ -466,7 +462,7 @@ void CreateGraphicsPipeline()
 		VK_SHADER_STAGE_VERTEX_BIT,
 		VK_SHADER_STAGE_FRAGMENT_BIT
 	};
-	std::unique_ptr<VkShaderModule> sphere_shader_modules = std::unique_ptr<VkShaderModule>(new VkShaderModule[shader_stage_count]);
+	graphics_shader_modules = std::unique_ptr<VkShaderModule>(new VkShaderModule[shader_stage_count]);
 
 	const uint32_t dynamic_state_count = 3;
 
@@ -490,7 +486,7 @@ void CreateGraphicsPipeline()
 		shader_stage_count,
 		shader_paths,
 		shader_stages_bits,
-		sphere_shader_modules.get(),
+		graphics_shader_modules.get(),
 		descriptor_set_layout_count,
 		descriptor_set_layout,
 		vertex_input_attribute_description_count,
@@ -552,18 +548,14 @@ void DestroyGraphicsPipeline()
 		graphics_pipeline_layout,
 		nullptr
 	);
-
-	vkDestroyShaderModule(
-		device,
-		vertex_shader_module,
-		nullptr
-	);
-
-	vkDestroyShaderModule(
-		device,
-		fragment_shader_module,
-		nullptr
-	);
+	for (int i = 0; i < shader_stage_count; i++)
+	{
+		vkDestroyShaderModule(
+			device,
+			graphics_shader_modules.get()[i],
+			nullptr
+		);
+	}
 }
 
 void CreateSquareModel()
@@ -572,9 +564,9 @@ void CreateSquareModel()
 	VkHelper::CreateBuffer(
 		device,                                                          // What device are we going to use to create the buffer
 		physical_device_mem_properties,                                  // What memory properties are avaliable on the device
-		vertex_buffer,                                                   // What buffer are we going to be creating
-		vertex_buffer_memory,                                            // The output for the buffer memory
-		vertex_buffer_size,                                              // How much memory we wish to allocate on the GPU
+		particle_vertex_buffer,                                                   // What buffer are we going to be creating
+		particle_vertex_buffer_memory,                                            // The output for the buffer memory
+		particle_vertex_buffer_size,                                              // How much memory we wish to allocate on the GPU
 		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,                               // What type of buffer do we want. Buffers can have multiple types, for example, uniform & vertex buffer.
 																		 // for now we want to keep the buffer spetilised to one type as this will allow vulkan to optimize the data.
 		VK_SHARING_MODE_EXCLUSIVE,                                       // There are two modes, exclusive and concurrent. Defines if it can concurrently be used by multiple queue
@@ -585,11 +577,11 @@ void CreateSquareModel()
 	// Get the pointer to the GPU memory
 	VkResult vertex_mapped_memory_result = vkMapMemory(
 		device,                                                         // The device that the memory is on
-		vertex_buffer_memory,                                           // The device memory instance
+		particle_vertex_buffer_memory,                                           // The device memory instance
 		0,                                                              // Offset from the memorys start that we are accessing
-		vertex_buffer_size,                                             // How much memory are we accessing
+		particle_vertex_buffer_size,                                             // How much memory are we accessing
 		0,                                                              // Flags (we dont need this for basic buffers)
-		&vertex_mapped_buffer_memory                                    // The return for the memory pointer
+		&particle_vertex_mapped_buffer_memory                                    // The return for the memory pointer
 	);
 
 	// Could we map the GPU memory to our CPU accessable pointer
@@ -597,9 +589,9 @@ void CreateSquareModel()
 
 	// First we copy the example data to the GPU
 	memcpy(
-		vertex_mapped_buffer_memory,                                    // The destination for our memory (GPU)
-		verticies,                                                      // Source for the memory (CPU-Ram)
-		vertex_buffer_size                                              // How much data we are transfering
+		particle_vertex_mapped_buffer_memory,                                    // The destination for our memory (GPU)
+		particle_verticies,                                                      // Source for the memory (CPU-Ram)
+		particle_vertex_buffer_size                                              // How much data we are transfering
 	);
 
 	// Create the models Index buffer
@@ -642,20 +634,20 @@ void DestroySquareModel()
 	// Now we unmap the data
 	vkUnmapMemory(
 		device,
-		vertex_buffer_memory
+		particle_vertex_buffer_memory
 	);
 
 	// Clean up the buffer data
 	vkDestroyBuffer(
 		device,
-		vertex_buffer,
+		particle_vertex_buffer,
 		nullptr
 	);
 
 	// Free the memory that was allocated for the buffer
 	vkFreeMemory(
 		device,
-		vertex_buffer_memory,
+		particle_vertex_buffer_memory,
 		nullptr
 	);
 
@@ -869,7 +861,7 @@ void BuildCommandBuffers(std::unique_ptr<VkCommandBuffer>& command_buffers, cons
 			command_buffers.get()[i],
 			0,
 			1,
-			&vertex_buffer,
+			&particle_vertex_buffer,
 			offsets
 		);
 

@@ -6,6 +6,8 @@
 #include <memory>
 #include <stdexcept>
 #include <iostream>
+#include <chrono>
+typedef std::chrono::high_resolution_clock Clock;
 
 
 #define GLM_ENABLE_EXPERIMENTAL
@@ -25,6 +27,10 @@
 
 #include <VkInitializers.hpp>
 #include <VkCore.hpp>
+
+
+#define PARTICLE_COUNT 1000			// How many particles will there be
+#define PARTICLE_MAX_LIFE 5.0f		// How long will each particle live for
 
 struct SBuffer
 {
@@ -58,37 +64,30 @@ struct SCamera
 	glm::mat4 camera_position;
 };
 
-class SVertexData
+struct SParticleSystemSettings
+{
+	glm::vec3 system_position;					// In world space where is the particle system located
+	float delta_time;
+	float max_life;
+};
+
+// Since the data when passed as a storage buffer needs to be in multiples of 16 bytes
+struct SParticleData
 {
 public:
-	SVertexData() {};
-	SVertexData(glm::vec3 position, glm::vec3 normal, glm::vec3 color, glm::vec2 uv, unsigned int materialID) : pos(position), texCoord(uv), nrm(normal), color(color), matID(materialID) {}
-	glm::vec3 pos;
-	glm::vec3 nrm;
-	glm::vec3 color;
-	glm::vec2 texCoord;
-	unsigned int matID;
+	SParticleData() {};
+	SParticleData(glm::vec4 position, glm::vec4 color, glm::vec3 velocity) : pos(position), color(color), velocity(velocity){}
+	glm::vec4 pos;
+	glm::vec4 color;
+	glm::vec3 velocity;
+	float life;
 };
 
-struct ModelInstance
-{
-	unsigned int vertex_offset = 0;
-	unsigned int index_offset = 0;
-	unsigned int vertex_count = 0;
-	unsigned int index_count = 0;
-};
+// Each particle will be made up of one point in space and turned into a quad by the geometry shader
+SParticleData particle_verticies[PARTICLE_COUNT];
 
-ModelInstance octopus_model;
-
-
-const unsigned int verticies_count = 100000;
-const unsigned int index_count = 100000;
-
-unsigned int used_verticies = 0;
-unsigned int used_index = 0;
-
-VkDeviceSize particle_vertex_buffer_size = sizeof(SVertexData) * verticies_count;
-VkDeviceSize index_buffer_size = sizeof(uint32_t) * index_count;
+// How big will the buffer be in bytes
+VkDeviceSize particle_vertex_buffer_size = sizeof(SParticleData) * PARTICLE_COUNT;
 
 void CreateRenderResources();
 void DestroyRenderResources();
@@ -99,7 +98,6 @@ VkInstance instance;
 VkDebugReportCallbackEXT debugger;
 VkPhysicalDevice physical_device = VK_NULL_HANDLE;
 
-
 uint32_t physical_devices_queue_family = 0;
 VkPhysicalDeviceProperties physical_device_properties;
 VkPhysicalDeviceFeatures physical_device_features;
@@ -109,8 +107,6 @@ VkDevice device = VK_NULL_HANDLE;
 VkQueue graphics_queue = VK_NULL_HANDLE;
 VkQueue present_queue = VK_NULL_HANDLE;
 VkCommandPool command_pool;
-
-
 
 bool window_open;
 SDL_Window* window;
@@ -143,24 +139,26 @@ VkPipelineStageFlags wait_stages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
 
 std::unique_ptr<VkCommandBuffer> graphics_command_buffers = nullptr;
 
-const unsigned int shader_stage_count = 2;
+const unsigned int shader_stage_count = 3;
 std::unique_ptr<VkShaderModule> graphics_shader_modules;
 VkPipeline graphics_pipeline = VK_NULL_HANDLE;
 VkPipelineLayout graphics_pipeline_layout = VK_NULL_HANDLE;
-VkShaderModule vertex_shader_module = VK_NULL_HANDLE;
-VkShaderModule fragment_shader_module = VK_NULL_HANDLE;
+
+std::unique_ptr<VkFence> compute_fence;
+VkShaderModule compute_shader_module;
+VkPipeline compute_pipeline = VK_NULL_HANDLE;
+VkPipelineLayout compute_pipeline_layout = VK_NULL_HANDLE;
+VkCommandBuffer compute_command_buffer = VK_NULL_HANDLE;
 
 
 VkBuffer particle_vertex_buffer = VK_NULL_HANDLE;
 VkDeviceMemory particle_vertex_buffer_memory = VK_NULL_HANDLE;
 // Raw pointer that will point to GPU memory
 void* particle_vertex_mapped_buffer_memory = nullptr;
+VkDescriptorPool particle_descriptor_pool;
+VkDescriptorSetLayout particle_descriptor_set_layout;
+VkDescriptorSet particle_descriptor_set;
 
-
-VkBuffer index_buffer = VK_NULL_HANDLE;
-VkDeviceMemory index_buffer_memory = VK_NULL_HANDLE;
-// Raw pointer that will point to GPU memory
-void* index_mapped_buffer_memory = nullptr;
 
 SCamera camera;
 SBuffer camera_buffer;
@@ -168,10 +166,17 @@ VkDescriptorPool camera_descriptor_pool;
 VkDescriptorSetLayout camera_descriptor_set_layout;
 VkDescriptorSet camera_descriptor_set;
 
+SParticleSystemSettings particle_system_settings;
+SBuffer particle_system_buffer;
+std::chrono::steady_clock::time_point last_frame_time;
+float delta_time;
+
 VkDescriptorPool texture_descriptor_pool;
 VkDescriptorSetLayout texture_descriptor_set_layout;
 VkDescriptorSet texture_descriptor_set;
 
+VkDrawIndirectCommand indirect_draw_command;
+SBuffer indirect_draw_buffer;
 
 // Create a new sdl window
 void WindowSetup(const char* title, int width, int height)
@@ -199,7 +204,7 @@ void WindowSetup(const char* title, int width, int height)
 void BuildCamera()
 {
 	camera.camera_position = glm::mat4(1.0f);
-	camera.camera_position = glm::translate(camera.camera_position, glm::vec3( 0.0f, -2.0f, -10.0f ));
+	camera.camera_position = glm::translate(camera.camera_position, glm::vec3( 0.0f, -3.0f, -10.0f ));
 
 	camera.projection = glm::perspective(
 		glm::radians(45.0f),										// What is the field of view
@@ -301,7 +306,7 @@ void Setup()
 	instance = VkHelper::CreateInstance(
 		instance_extensions, extention_count,
 		instance_layers, layer_count,
-		"Camera", VK_MAKE_VERSION(1, 0, 0),
+		"Compute Particle System", VK_MAKE_VERSION(1, 0, 0),
 		"Vulkan", VK_MAKE_VERSION(1, 0, 0),
 		VK_MAKE_VERSION(1, 1, 108));
 
@@ -410,16 +415,16 @@ void Setup()
 
 	// Create the models vertex buffer
 	VkHelper::CreateBuffer(
-		device,                                                          // What device are we going to use to create the buffer
-		physical_device_mem_properties,                                  // What memory properties are available on the device
-		particle_vertex_buffer,                                                   // What buffer are we going to be creating
-		particle_vertex_buffer_memory,                                            // The output for the buffer memory
-		particle_vertex_buffer_size,                                              // How much memory we wish to allocate on the GPU
-		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,                               // What type of buffer do we want. Buffers can have multiple types, for example, uniform & vertex buffer.
-																		 // for now we want to keep the buffer specialized to one type as this will allow vulkan to optimize the data.
-		VK_SHARING_MODE_EXCLUSIVE,                                       // There are two modes, exclusive and concurrent. Defines if it can concurrently be used by multiple queue
-																		 // families at the same time
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT                              // What properties do we require of our memory
+		device,                                                                      // What device are we going to use to create the buffer
+		physical_device_mem_properties,                                              // What memory properties are available on the device
+		particle_vertex_buffer,                                                      // What buffer are we going to be creating
+		particle_vertex_buffer_memory,                                               // The output for the buffer memory
+		particle_vertex_buffer_size,                                                 // How much memory we wish to allocate on the GPU
+		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,      // What type of buffer do we want. Buffers can have multiple types, for example, uniform & vertex buffer.
+																		             // for now we want to keep the buffer specialized to one type as this will allow vulkan to optimize the data.
+		VK_SHARING_MODE_EXCLUSIVE,                                                   // There are two modes, exclusive and concurrent. Defines if it can concurrently be used by multiple queue
+																		             // families at the same time
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT										     // What properties do we require of our memory
 	);
 
 	// Get the pointer to the GPU memory
@@ -434,34 +439,6 @@ void Setup()
 
 	// Could we map the GPU memory to our CPU accessible pointer
 	assert(vertex_mapped_memory_result == VK_SUCCESS);
-
-	// Create the models Index buffer
-	VkHelper::CreateBuffer(
-		device,                                                          // What device are we going to use to create the buffer
-		physical_device_mem_properties,                                  // What memory properties are available on the device
-		index_buffer,                                                    // What buffer are we going to be creating
-		index_buffer_memory,                                             // The output for the buffer memory
-		index_buffer_size,                                               // How much memory we wish to allocate on the GPU
-		VK_BUFFER_USAGE_INDEX_BUFFER_BIT,                                // What type of buffer do we want. Buffers can have multiple types, for example, uniform & vertex buffer.
-																		 // for now we want to keep the buffer specialized to one type as this will allow vulkan to optimize the data.
-		VK_SHARING_MODE_EXCLUSIVE,                                       // There are two modes, exclusive and concurrent. Defines if it can concurrently be used by multiple queue
-																		 // families at the same time
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT                              // What properties do we require of our memory
-	);
-
-	// Get the pointer to the GPU memory
-	VkResult index_mapped_memory_result = vkMapMemory(
-		device,                                                         // The device that the memory is on
-		index_buffer_memory,                                            // The device memory instance
-		0,                                                              // Offset from the memory starts that we are accessing
-		index_buffer_size,                                              // How much memory are we accessing
-		0,                                                              // Flags (we don't need this for basic buffers)
-		&index_mapped_buffer_memory                                     // The return for the memory pointer
-	);
-
-	// Could we map the GPU memory to our CPU accessible pointer
-	assert(index_mapped_memory_result == VK_SUCCESS);
-
 
 
 	// Define how many descriptor pools we will need
@@ -536,11 +513,7 @@ void Setup()
 	// Could we map the GPU memory to our CPU accessible pointer
 	assert(mapped_memory_result == VK_SUCCESS);
 
-
-
 	BuildCamera();
-	
-
 
 	// Define how many descriptor pools we will need
 	const uint32_t camera_descriptor_pool_size_count = 1;
@@ -579,8 +552,42 @@ void Setup()
 		camera_descriptor_set_layout,
 		1
 	);
+	
 
+	particle_system_buffer.buffer_size = sizeof(SParticleSystemSettings);
+	particle_system_buffer.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+	particle_system_buffer.sharing_mode = VK_SHARING_MODE_EXCLUSIVE;
+	particle_system_buffer.buffer_memory_properties = VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT;
 
+	// Create a temp buffer to store the image in before we transfer it over to the image
+	VkHelper::CreateBuffer(
+		device,												// What device are we going to use to create the buffer
+		physical_device_mem_properties,						// What memory properties are available on the device
+		particle_system_buffer.buffer,						// What buffer are we going to be creating
+		particle_system_buffer.buffer_memory,				// The output for the buffer memory
+		particle_system_buffer.buffer_size,					// How much memory we wish to allocate on the GPU
+		particle_system_buffer.usage,						// What type of buffer do we want. Buffers can have multiple types, for example, uniform & vertex buffer.
+															// for now we want to keep the buffer specialized to one type as this will allow vulkan to optimize the data.
+		particle_system_buffer.sharing_mode,				// There are two modes, exclusive and concurrent. Defines if it can concurrently be used by multiple queue
+															// families at the same time
+		particle_system_buffer.buffer_memory_properties		// What properties do we require of our memory
+	);
+
+	// Get the pointer to the GPU memory
+	mapped_memory_result = vkMapMemory(
+		device,                                        // The device that the memory is on
+		particle_system_buffer.buffer_memory,          // The device memory instance
+		0,                                             // Offset from the memory starts that we are accessing
+		particle_system_buffer.buffer_size,            // How much memory are we accessing
+		0,                                             // Flags (we don't need this for basic buffers)
+		&particle_system_buffer.mapped_buffer_memory   // The return for the memory pointer
+	);
+
+	// Could we map the GPU memory to our CPU accessible pointer
+	assert(mapped_memory_result == VK_SUCCESS);
+
+	// Work out the time as the application starts so we can work out the next frames time
+	last_frame_time = Clock::now();
 
 	VkDescriptorBufferInfo descriptorImageInfo = VkHelper::DescriptorBufferInfo(
 		camera_buffer.buffer,
@@ -588,7 +595,7 @@ void Setup()
 		0
 	);
 
-	VkWriteDescriptorSet descriptorWrite = VkHelper::WriteDescriptorSet(camera_descriptor_set,VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, descriptorImageInfo, 0);
+	VkWriteDescriptorSet descriptorWrite = VkHelper::WriteDescriptorSet(camera_descriptor_set, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, descriptorImageInfo, 0);
 
 	// Update the descriptor with the texture data
 	vkUpdateDescriptorSets(
@@ -597,6 +604,52 @@ void Setup()
 		&descriptorWrite,
 		0,
 		NULL
+	);
+
+	// Define the various rendering settings that we normally do in the command buffer recording
+	indirect_draw_command.firstInstance = 0;							// If we are rendering a range of models (which we are), whats the first model index we want to render?
+	indirect_draw_command.firstVertex = 0;								// How far along the vertex buffer should we offset
+	indirect_draw_command.instanceCount = 1;							// How many models are we wanting to render? Each model gets a position from the position
+	indirect_draw_command.vertexCount = PARTICLE_COUNT;					// Normally the vertex count represents how many points of a triangle we want
+																		// To render, in this instance as we are in point mode, or draw each point individually
+																		// each particle is a vertex and will be expanded by the geometry shader into a billboard particle
+
+
+	VkDeviceSize indirect_buffer_size = sizeof(VkDrawIndirectCommand);
+
+	VkHelper::CreateBuffer(
+		device,                                                          // What device are we going to use to create the buffer
+		physical_device_mem_properties,                                  // What memory properties are available on the device
+		indirect_draw_buffer.buffer,                                     // What buffer are we going to be creating
+		indirect_draw_buffer.buffer_memory,                              // The output for the buffer memory
+		indirect_buffer_size,                                            // How much memory we wish to allocate on the GPU
+		VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT,                             // What type of buffer do we want. Buffers can have multiple types, for example, uniform & vertex buffer.
+																		 // for now we want to keep the buffer specialized to one type as this will allow vulkan to optimize the data.
+		VK_SHARING_MODE_EXCLUSIVE,                                       // There are two modes, exclusive and concurrent. Defines if it can concurrently be used by multiple queue
+																		 // families at the same time
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT                              // What properties do we require of our memory
+	);
+
+	// Get the pointer to the GPU memory
+	mapped_memory_result = vkMapMemory(
+		device,                                                         // The device that the memory is on
+		indirect_draw_buffer.buffer_memory,                             // The device memory instance
+		0,                                                              // Offset from the memory starts that we are accessing
+		indirect_buffer_size,                                           // How much memory are we accessing
+		0,                                                              // Flags (we don't need this for basic buffers)
+		&indirect_draw_buffer.mapped_buffer_memory                      // The return for the memory pointer
+	);
+
+	// Could we map the GPU memory to our CPU accessible pointer
+	assert(mapped_memory_result == VK_SUCCESS);
+
+
+
+	// Transfer data over to the indirect buffer
+	memcpy(
+		indirect_draw_buffer.mapped_buffer_memory,                      // The destination for our memory (GPU)
+		&indirect_draw_command,                                         // Source for the memory (CPU-Ram)
+		indirect_buffer_size                                            // How much data we are transferring
 	);
 
 }
@@ -642,8 +695,6 @@ void Destroy()
 		nullptr
 	);
 
-
-
 	// Now we unmap the data
 	vkUnmapMemory(
 		device,
@@ -661,27 +712,6 @@ void Destroy()
 	vkFreeMemory(
 		device,
 		particle_vertex_buffer_memory,
-		nullptr
-	);
-
-
-	// Now we unmap the data
-	vkUnmapMemory(
-		device,
-		index_buffer_memory
-	);
-
-	// Clean up the buffer data
-	vkDestroyBuffer(
-		device,
-		index_buffer,
-		nullptr
-	);
-
-	// Free the memory that was allocated for the buffer
-	vkFreeMemory(
-		device,
-		index_buffer_memory,
 		nullptr
 	);
 
@@ -705,7 +735,6 @@ void Destroy()
 		render_finished_semaphore,
 		nullptr
 	);
-
 
 	// Clean up the command pool
 	vkDestroyCommandPool(
@@ -738,73 +767,69 @@ void Destroy()
 
 void CreateGraphicsPipeline()
 {
-
-	const uint32_t vertex_input_attribute_description_count = 4;
+	// How many unique vertex input attributes are we passing, in this instance, we are passing a color and position
+	const uint32_t vertex_input_attribute_description_count = 2;
+	// Create the pointer array for the vertex input attachments
 	std::unique_ptr<VkVertexInputAttributeDescription> vertex_input_attribute_descriptions =
 		std::unique_ptr<VkVertexInputAttributeDescription>(new VkVertexInputAttributeDescription[vertex_input_attribute_description_count]);
 
 	// Used to store the position data of the vertex
 	vertex_input_attribute_descriptions.get()[0].binding = 0;								// What vertex input binding are we talking about
 	vertex_input_attribute_descriptions.get()[0].location = 0;								// Inside the binding what is its location id
-	vertex_input_attribute_descriptions.get()[0].format = VK_FORMAT_R32G32B32_SFLOAT;		// What format is the data coming in as
-	vertex_input_attribute_descriptions.get()[0].offset = offsetof(SVertexData, pos);	    // Within the whole structure of the data packet, where dose it start in memory
-
-	// Used to store the normal data of the vertex
-	vertex_input_attribute_descriptions.get()[1].binding = 0;								// What vertex input binding are we talking about
-	vertex_input_attribute_descriptions.get()[1].location = 1;								// Inside the binding what is its location id
-	vertex_input_attribute_descriptions.get()[1].format = VK_FORMAT_R32G32B32_SFLOAT;		// What format is the data coming in as
-	vertex_input_attribute_descriptions.get()[1].offset = offsetof(SVertexData, nrm);	    // Within the whole structure of the data packet, where dose it start in memory
+	vertex_input_attribute_descriptions.get()[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;	// What format is the data coming in as
+	vertex_input_attribute_descriptions.get()[0].offset = offsetof(SParticleData, pos);	    // Within the whole structure of the data packet, where dose it start in memory
 
 	// Used to store the color data of the vertex
-	vertex_input_attribute_descriptions.get()[2].binding = 0;								// What vertex input binding are we talking about
-	vertex_input_attribute_descriptions.get()[2].location = 2;								// Inside the binding what is its location id
-	vertex_input_attribute_descriptions.get()[2].format = VK_FORMAT_R32G32B32_SFLOAT;		// What format is the data coming in as
-	vertex_input_attribute_descriptions.get()[2].offset = offsetof(SVertexData, color);	    // Within the whole structure of the data packet, where dose it start in memory
-
-	// Used to store the texture data of the vertex
-	vertex_input_attribute_descriptions.get()[3].binding = 0;								// What vertex input binding are we talking about
-	vertex_input_attribute_descriptions.get()[3].location = 3;								// Inside the binding what is its location id
-	vertex_input_attribute_descriptions.get()[3].format = VK_FORMAT_R32G32_SFLOAT;	    	// What format is the data coming in as
-	vertex_input_attribute_descriptions.get()[3].offset = offsetof(SVertexData, texCoord);	// Within the whole structure of the data packet, where dose it start in memory
+	vertex_input_attribute_descriptions.get()[1].binding = 0;								// What vertex input binding are we talking about
+	vertex_input_attribute_descriptions.get()[1].location = 1;								// Inside the binding what is its location id
+	vertex_input_attribute_descriptions.get()[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;	// What format is the data coming in as
+	vertex_input_attribute_descriptions.get()[1].offset = offsetof(SParticleData, color);	// Within the whole structure of the data packet, where dose it start in memory
 
 
-
-
+	// How many unique vertex input buffers are we passing to the pipeline
 	const uint32_t vertex_input_binding_description_count = 1;
-
+	// Pointer array of all the vertex input buffer definitions
 	std::unique_ptr<VkVertexInputBindingDescription> vertex_input_binding_descriptions =
 		std::unique_ptr<VkVertexInputBindingDescription>(new VkVertexInputBindingDescription[vertex_input_binding_description_count]);
 
-	vertex_input_binding_descriptions.get()[0].binding = 0;
-	vertex_input_binding_descriptions.get()[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-	vertex_input_binding_descriptions.get()[0].stride = sizeof(SVertexData);
+	vertex_input_binding_descriptions.get()[0].binding = 0;									// What binding number is the buffer, this must be the same
+																							// for the vertex input attributes
+	vertex_input_binding_descriptions.get()[0].inputRate = VK_VERTEX_INPUT_RATE_VERTEX;		// How often should the data be given to the GPU
+	vertex_input_binding_descriptions.get()[0].stride = sizeof(SParticleData);				// How big is each vertex element
 
+	// Define the paths for the shaders
 	const char* shader_paths[shader_stage_count]{
-		"../../Data/Shaders/11-IndirectDrawing/vert.spv",
-		"../../Data/Shaders/11-IndirectDrawing/frag.spv"
+		"../../Data/Shaders/14-ComputeParticleSystem/ParticleSystemGraphics/vert.spv",
+		"../../Data/Shaders/14-ComputeParticleSystem/ParticleSystemGraphics/geom.spv",
+		"../../Data/Shaders/14-ComputeParticleSystem/ParticleSystemGraphics/frag.spv"
 	};
-
+	// Define what shader types it should expect
 	VkShaderStageFlagBits shader_stages_bits[shader_stage_count]{
 		VK_SHADER_STAGE_VERTEX_BIT,
+		VK_SHADER_STAGE_GEOMETRY_BIT,
 		VK_SHADER_STAGE_FRAGMENT_BIT
 	};
 	graphics_shader_modules = std::unique_ptr<VkShaderModule>(new VkShaderModule[shader_stage_count]);
-
+	
+	// How many states do we want the ability to dynamically update
 	const uint32_t dynamic_state_count = 3;
-
+	// What dynamic states do we want access to change in command buffer recording
 	VkDynamicState dynamic_states[dynamic_state_count] = {
 		VK_DYNAMIC_STATE_VIEWPORT,
 		VK_DYNAMIC_STATE_SCISSOR,
 		VK_DYNAMIC_STATE_LINE_WIDTH
 	};
 
+	// How many descriptor sets do we want to attach to the pipeline
 	const uint32_t descriptor_set_layout_count = 2;
 
+	// Define the descriptor set layouts that will be used for the pipeline
 	VkDescriptorSetLayout descriptor_set_layout[descriptor_set_layout_count] = {
 		camera_descriptor_set_layout,
 		texture_descriptor_set_layout
 	};
 
+	// Create the pipeline
 	graphics_pipeline = VkHelper::CreateGraphicsPipeline(
 		physical_device,
 		device,
@@ -821,7 +846,11 @@ void CreateGraphicsPipeline()
 		vertex_input_binding_description_count,
 		vertex_input_binding_descriptions.get(),
 		dynamic_state_count,
-		dynamic_states
+		dynamic_states,
+		VK_PRIMITIVE_TOPOLOGY_POINT_LIST,
+		VK_POLYGON_MODE_FILL,
+		100.0f,
+		VK_CULL_MODE_NONE
 	);
 	
 }
@@ -884,6 +913,169 @@ void DestroyGraphicsPipeline()
 			nullptr
 		);
 	}
+}
+
+void CreateComputePipeline()
+{
+
+	// Define how many descriptor pools we will need
+	const uint32_t vertex_descriptor_pool_size_count = 2;
+
+	// Define that the new descriptor pool will be taking a combined image sampler
+	VkDescriptorPoolSize vertex_pool_size[vertex_descriptor_pool_size_count] = {
+		VkHelper::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1),
+		VkHelper::DescriptorPoolSize(VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1),
+	};
+
+
+	// Create the new descriptor pool with the defined settings
+	particle_descriptor_pool = VkHelper::CreateDescriptorPool(
+		device,
+		vertex_pool_size,
+		vertex_descriptor_pool_size_count,
+		1															// How many descriptor sets do will we need
+																	// Since we are only rendering one image, just 1
+	);
+
+	// Define at what stage of the rendering pipeline the texture is coming into as well as what shader and what location
+	VkDescriptorSetLayoutBinding vertex_layout_bindings[vertex_descriptor_pool_size_count] = {
+		VkHelper::DescriptorSetLayoutBinding(0, VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT),
+		VkHelper::DescriptorSetLayoutBinding(1, VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER, 1, VK_SHADER_STAGE_COMPUTE_BIT)
+	};
+
+	// Create the new texture set layout
+	particle_descriptor_set_layout = VkHelper::CreateDescriptorSetLayout(
+		device,
+		vertex_layout_bindings,
+		vertex_descriptor_pool_size_count
+	);
+
+	// Allocate a new texture descriptor set from the pool
+	particle_descriptor_set = VkHelper::AllocateDescriptorSet(
+		device,
+		particle_descriptor_pool,
+		particle_descriptor_set_layout,
+		1
+	);
+
+	{
+		// Update the vertex buffer being accessed by the compute shader
+		VkDescriptorBufferInfo vertex_descriptor_buffer_info = VkHelper::DescriptorBufferInfo(
+			particle_vertex_buffer,
+			particle_vertex_buffer_size,
+			0
+		);
+
+		VkWriteDescriptorSet descriptor_writes = VkHelper::WriteDescriptorSet(
+			particle_descriptor_set,
+			VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+			vertex_descriptor_buffer_info,
+			0
+		);
+
+
+		// Update the descriptor with the texture data
+		vkUpdateDescriptorSets(
+			device,
+			1,
+			&descriptor_writes,
+			0,
+			NULL
+		);
+	}
+
+
+	{
+		// Update the vertex buffer being accessed by the compute shader
+		VkDescriptorBufferInfo vertex_descriptor_buffer_info = VkHelper::DescriptorBufferInfo(
+			particle_system_buffer.buffer,
+			particle_system_buffer.buffer_size,
+			0
+		);
+
+		VkWriteDescriptorSet descriptor_writes = VkHelper::WriteDescriptorSet(
+			particle_descriptor_set,
+			VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+			vertex_descriptor_buffer_info,
+			1
+		);
+
+
+		// Update the descriptor with the texture data
+		vkUpdateDescriptorSets(
+			device,
+			1,
+			&descriptor_writes,
+			0,
+			NULL
+		);
+	}
+
+
+	const uint32_t descriptor_set_layout_count = 1;
+
+	VkDescriptorSetLayout descriptor_set_layout[descriptor_set_layout_count] = {
+		particle_descriptor_set_layout
+	};
+
+	compute_pipeline = VkHelper::CreateComputePipeline(
+		device,
+		compute_pipeline_layout,
+		"../../Data/Shaders/14-ComputeParticleSystem/ParticleSystemCompute/comp.spv",
+		compute_shader_module,
+		descriptor_set_layout_count,
+		descriptor_set_layout
+	);
+
+
+	compute_fence = std::unique_ptr<VkFence>();
+	// Create a new fence to make sure the execution of the command buffer was successful 
+	VkHelper::CreateFence(
+		device,
+		compute_fence,
+		1
+	);
+
+	// Define the structure needed to allocate a new command buffer
+	VkCommandBufferAllocateInfo command_buffer_allocate_info = VkHelper::CommandBufferAllocateInfo(
+		command_pool,
+		1
+	);
+
+	// Allocate the new command buffer
+	VkResult allocate_command_buffer_resut = vkAllocateCommandBuffers(
+		device,
+		&command_buffer_allocate_info,
+		&compute_command_buffer
+	);
+}
+
+void DestroyComputePipeline()
+{
+
+	vkDestroyFence(
+		device,
+		*compute_fence.get(),
+		nullptr
+	);
+
+	vkDestroyPipeline(
+		device,
+		compute_pipeline,
+		nullptr
+	);
+
+	vkDestroyPipelineLayout(
+		device,
+		compute_pipeline_layout,
+		nullptr
+	);
+
+	vkDestroyShaderModule(
+		device,
+		compute_shader_module,
+		nullptr
+	);
 }
 
 STexture CreateTexture(const char* path)
@@ -957,8 +1149,6 @@ STexture CreateTexture(const char* path)
 		texture.transfer_buffer.buffer_memory
 	);
 
-
-
 	texture.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;		// Define that the the image is read only
 																	// This makes image reads from the shader faster
 	texture.format = VK_FORMAT_R8G8B8A8_UNORM;						// What is the format of the image, in this case, 4 bytes RGBA
@@ -978,10 +1168,6 @@ STexture CreateTexture(const char* path)
 		texture.memory,
 		VK_IMAGE_LAYOUT_UNDEFINED										// Here we define the initial layout, later we change its layout to VK_FORMAT_R8G8B8A8_UNORM
 	);
-
-
-
-
 
 	// Create a new command that we will run on the GPU, this will be used to change the images settings
 	// and transfer the image data between the buffer and the image
@@ -1121,37 +1307,6 @@ void SetAlbedoTexture(STexture& texture)
 	);
 }
 
-void CreateModel(const char* path, ModelInstance& model_instance)
-{
-
-	ObjLoader<SVertexData> loader;
-	loader.loadModel(path);
-
-	model_instance.vertex_offset = used_verticies;
-	model_instance.index_offset = used_index;
-	model_instance.vertex_count = loader.m_vertices.size();
-	model_instance.index_count = loader.m_indices.size();
-
-
-
-	// First we copy the example data to the GPU
-	memcpy(
-		index_mapped_buffer_memory,                                         // The destination for our memory (GPU)
-		loader.m_indices.data(),                                            // Source for the memory (CPU-Ram)
-		model_instance.index_count * sizeof(uint32_t)                       // How much data we are transferring
-	);
-
-	// First we copy the example data to the GPU
-	memcpy(
-		particle_vertex_mapped_buffer_memory,                                         // The destination for our memory (GPU)
-		loader.m_vertices.data(),                                            // Source for the memory (CPU-Ram)
-		model_instance.vertex_count * sizeof(SVertexData)                     // How much data we are transferring
-	);
-
-
-	used_verticies += model_instance.vertex_count;
-	used_index += model_instance.index_count;
-}
 
 void DestroyRenderResources()
 {
@@ -1344,14 +1499,6 @@ void BuildCommandBuffers(std::unique_ptr<VkCommandBuffer>& command_buffers, cons
 			offsets
 		);
 
-		// Bind the models index buffer
-		vkCmdBindIndexBuffer(
-			command_buffers.get()[i],
-			index_buffer,
-			octopus_model.index_offset,
-			VK_INDEX_TYPE_UINT32
-		);
-
 
 		// Bind the position to the pipeline
 		vkCmdBindDescriptorSets(
@@ -1377,14 +1524,13 @@ void BuildCommandBuffers(std::unique_ptr<VkCommandBuffer>& command_buffers, cons
 			NULL
 		);
 
-		// Draw the model
-		vkCmdDrawIndexed(
+		// Render from the pre made render buffer 
+		vkCmdDrawIndirect(
 			command_buffers.get()[i],
-			octopus_model.index_count,	// The model consists of 6 verticies, 2 that are shared between both triangles
-			1,							// Draw once model
+			indirect_draw_buffer.buffer,
 			0,
-			octopus_model.vertex_offset,
-			0
+			1,
+			sizeof(VkDrawIndirectCommand)
 		);
 
 
@@ -1399,6 +1545,109 @@ void BuildCommandBuffers(std::unique_ptr<VkCommandBuffer>& command_buffers, cons
 		);
 		assert(end_command_buffer_result == VK_SUCCESS);
 	}
+}
+
+void BuildComputeBuffers()
+{
+	// Create a info structure to start the command buffer recording
+	VkCommandBufferBeginInfo command_buffer_begin_info = VkHelper::CommandBufferBeginInfo(VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT);
+
+	// Start the command buffer recording process
+	VkResult begin_command_buffer_result = vkBeginCommandBuffer(
+		compute_command_buffer,
+		&command_buffer_begin_info
+	);
+
+	// Attach the pipeline to the command
+	vkCmdBindPipeline(
+		compute_command_buffer,
+		VK_PIPELINE_BIND_POINT_COMPUTE,
+		compute_pipeline
+	);
+
+	// Bind the data descriptor set to the command
+	vkCmdBindDescriptorSets(
+		compute_command_buffer,
+		VK_PIPELINE_BIND_POINT_COMPUTE,
+		compute_pipeline_layout,
+		0,
+		1,
+		&particle_descriptor_set,
+		0,
+		0
+	);
+
+	// Execute the command
+	// The way the compute commands are ran is in a 3D coordinate space, for example, if we wanted to process a texture
+	// we would want to run the compute shader for the width x height of the texture, but in this instance we just want 
+	// to process it on a 1D array, so to work out the total amount of shader calls X * Y * Z or 'data_size' * 1 * 1
+	vkCmdDispatch(
+		compute_command_buffer,
+		PARTICLE_COUNT,							// X axis
+		1,										// Y axis
+		1										// Z axis
+	);
+
+	// End the command recording
+	VkResult end_command_buffer_result = vkEndCommandBuffer(
+		compute_command_buffer
+	);
+
+	assert(end_command_buffer_result == VK_SUCCESS);
+}
+
+void UpdateParticleSystem()
+{
+	std::chrono::steady_clock::time_point current_time = Clock::now();
+
+	float time_fraction = ((float)std::chrono::duration_cast<std::chrono::nanoseconds>(current_time - last_frame_time).count() / (float)1000000000);
+
+	delta_time += time_fraction;
+
+	last_frame_time = current_time;
+
+	particle_system_settings.max_life = PARTICLE_MAX_LIFE;				// How long we want each particle to live for
+	particle_system_settings.delta_time = time_fraction;
+
+	particle_system_settings.system_position = glm::vec3( sin(delta_time * 0.25f) * 4, 0, 0 );
+
+	// Transfer data over to the texture buffer
+	memcpy(
+		particle_system_buffer.mapped_buffer_memory,		// The destination for our memory (GPU)
+		&particle_system_settings,							// Source for the memory (CPU-Ram)
+		sizeof(SParticleSystemSettings)						// How much data we are transferring
+	);
+
+
+	// Create a new submit info instance
+	VkSubmitInfo submit_info = VkHelper::SubmitInfo(compute_command_buffer);
+
+	// Submit the command pool to the queue for execution
+	VkResult compute_submit_result = vkQueueSubmit(
+		graphics_queue,										// You can use the graphics queue to process compute tasks
+		1,
+		&submit_info,
+		*compute_fence.get()
+	);
+	assert(compute_submit_result == VK_SUCCESS);
+
+	// Wait for the fence to be released, this will happen upon the completion of the compute shader
+	VkResult wait_for_fence_result = vkWaitForFences(
+		device,
+		1,
+		compute_fence.get(),
+		VK_TRUE,
+		LONG_MAX
+	);
+	assert(wait_for_fence_result == VK_SUCCESS);
+
+	// Reset the fence for the "next" call of the shader, in this case we are not doing multiple calls, but we could
+	VkResult reset_fence_result = vkResetFences(
+		device,
+		1,
+		compute_fence.get()
+	);
+	assert(wait_for_fence_result == VK_SUCCESS);
 }
 
 void Render()
@@ -1468,37 +1717,89 @@ void Render()
 
 int main(int argc, char **argv)
 {
-
+	// Setup the vulkan instance and device settings
 	Setup();
 
+	// Create the graphics pipeline
 	CreateGraphicsPipeline();
 
+	// Create the particle system compute pipeline
+	CreateComputePipeline();
+
 	// Create albedo texture for the model
-	STexture metal_texture = CreateTexture("../../Data/Images/futuristic-panels1-bl/futuristic-panels1-albedo.png");
+	STexture metal_texture = CreateTexture("../../Data/Images/eye.png");
 
 	// Set the albedo texture
 	SetAlbedoTexture(metal_texture);
 
-	// Load the new model
-	CreateModel("../../Data/Models/Octopus.obj", octopus_model);
+	///////////////////////////////////////////
+	///// Init The Particle System Buffer /////
+	///////////////////////////////////////////
+
+
+
+	for (int i = 0; i < PARTICLE_COUNT; i++)
+	{
+		particle_verticies[i].life = (1.0f / PARTICLE_COUNT) * i * PARTICLE_MAX_LIFE + PARTICLE_MAX_LIFE;
+		particle_verticies[i].color = glm::vec4(1.0f);
+		particle_verticies[i].velocity = glm::normalize(glm::vec3(
+			((rand() % 2000) - 1000) * 0.001f,
+			1.0f,
+			0.0f
+		));
+	}
+
+	// Transfer particles over to the GPU
+	memcpy(
+		particle_vertex_mapped_buffer_memory,                                         // The destination for our memory (GPU)
+		particle_verticies,								                             // Source for the memory (CPU-Ram)
+		sizeof(SParticleData) * PARTICLE_COUNT				                     // How much data we are transferring
+	);
 
 	// Regenerate the command buffers
 	BuildCommandBuffers(graphics_command_buffers, swapchain_image_count);
+
+	BuildComputeBuffers();
 
 	while (window_open)
 	{
 		PollWindow();
 
+		UpdateParticleSystem();
 		Render();
 	}
 
 	////////////////////
-	///// Clean Up ///// 
+	///// Clean Up /////
 	////////////////////
+
+
+	// Now we unmap the data
+	vkUnmapMemory(
+		device,
+		indirect_draw_buffer.buffer_memory
+	);
+
+	// Clean up the buffer data
+	vkDestroyBuffer(
+		device,
+		indirect_draw_buffer.buffer,
+		nullptr
+	);
+
+	// Free the memory that was allocated for the buffer
+	vkFreeMemory(
+		device,
+		indirect_draw_buffer.buffer_memory,
+		nullptr
+	);
 
 	DestroyTexture(metal_texture);
 
+	DestroyComputePipeline();
+
 	DestroyGraphicsPipeline();
+
 	// Finish previous projects cleanups
 	Destroy();
 

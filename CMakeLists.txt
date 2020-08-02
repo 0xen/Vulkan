@@ -54,3 +54,5 @@ add_subdirectory("10-Texturing")
 add_subdirectory("11-Camera")
 add_subdirectory("12-IndirectDrawing")
 add_subdirectory("13-ComputePipeline")
+add_subdirectory("14-ComputeParticleSystem")
+
