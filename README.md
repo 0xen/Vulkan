@@ -10,7 +10,15 @@ The idea behind this project is to create a comprehensive guide to help develope
 
 
 ## <a name="Building"></a> Building
-Example Coming Soon
+### Windows
+The project is created using CMake and will allow you to build the example executables or as a Visual Studio Solution
+
+#### Build Visual Studio Solution
+
+```cmake -H. -Bbuild --log-level=NOTICE -G "Visual Studio 16 2019" -A x64```
+
+### Linux
+Coming Soon
 
 ## <a name="GettingStarted"></a> Getting Started
 
