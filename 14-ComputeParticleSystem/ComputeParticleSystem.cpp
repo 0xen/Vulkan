@@ -894,6 +894,27 @@ void CreateRenderResources()
 
 void DestroyGraphicsPipeline()
 {
+
+	// Now we unmap the data
+	vkUnmapMemory(
+		device,
+		indirect_draw_buffer.buffer_memory
+	);
+
+	// Clean up the buffer data
+	vkDestroyBuffer(
+		device,
+		indirect_draw_buffer.buffer,
+		nullptr
+	);
+
+	// Free the memory that was allocated for the buffer
+	vkFreeMemory(
+		device,
+		indirect_draw_buffer.buffer_memory,
+		nullptr
+	);
+
 	vkDestroyPipeline(
 		device,
 		graphics_pipeline,
@@ -1727,10 +1748,10 @@ int main(int argc, char **argv)
 	CreateComputePipeline();
 
 	// Create albedo texture for the model
-	STexture metal_texture = CreateTexture("../../Data/Images/eye.png");
+	STexture eye_texture = CreateTexture("../../Data/Images/eye.png");
 
 	// Set the albedo texture
-	SetAlbedoTexture(metal_texture);
+	SetAlbedoTexture(eye_texture);
 
 	///////////////////////////////////////////
 	///// Init The Particle System Buffer /////
@@ -1773,28 +1794,7 @@ int main(int argc, char **argv)
 	///// Clean Up /////
 	////////////////////
 
-
-	// Now we unmap the data
-	vkUnmapMemory(
-		device,
-		indirect_draw_buffer.buffer_memory
-	);
-
-	// Clean up the buffer data
-	vkDestroyBuffer(
-		device,
-		indirect_draw_buffer.buffer,
-		nullptr
-	);
-
-	// Free the memory that was allocated for the buffer
-	vkFreeMemory(
-		device,
-		indirect_draw_buffer.buffer_memory,
-		nullptr
-	);
-
-	DestroyTexture(metal_texture);
+	DestroyTexture(eye_texture);
 
 	DestroyComputePipeline();
 

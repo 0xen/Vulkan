@@ -78,11 +78,11 @@ struct ModelInstance
 	unsigned int index_count = 0;
 };
 
-ModelInstance octopus_model;
+ModelInstance pbrboy_model;
 
 
-const unsigned int verticies_count = 100000;
-const unsigned int index_count = 100000;
+const unsigned int verticies_count = 500000;
+const unsigned int index_count = 500000;
 
 unsigned int used_verticies = 0;
 unsigned int used_index = 0;
@@ -199,7 +199,7 @@ void WindowSetup(const char* title, int width, int height)
 void BuildCamera()
 {
 	camera.camera_position = glm::mat4(1.0f);
-	camera.camera_position = glm::translate(camera.camera_position, glm::vec3( 0.0f, -2.0f, -10.0f ));
+	camera.camera_position = glm::translate(camera.camera_position, glm::vec3( 0.0f, -0.07f, -0.2f ));
 
 	camera.projection = glm::perspective(
 		glm::radians(45.0f),										// What is the field of view
@@ -780,8 +780,8 @@ void CreateGraphicsPipeline()
 	vertex_input_binding_descriptions.get()[0].stride = sizeof(SVertexData);
 
 	const char* shader_paths[shader_stage_count]{
-		"../../Data/Shaders/11-IndirectDrawing/vert.spv",
-		"../../Data/Shaders/11-IndirectDrawing/frag.spv"
+		"../../Data/Shaders/11-Camera/vert.spv",
+		"../../Data/Shaders/11-Camera/frag.spv"
 	};
 
 	VkShaderStageFlagBits shader_stages_bits[shader_stage_count]{
@@ -1348,7 +1348,7 @@ void BuildCommandBuffers(std::unique_ptr<VkCommandBuffer>& command_buffers, cons
 		vkCmdBindIndexBuffer(
 			command_buffers.get()[i],
 			index_buffer,
-			octopus_model.index_offset,
+			pbrboy_model.index_offset,
 			VK_INDEX_TYPE_UINT32
 		);
 
@@ -1380,10 +1380,10 @@ void BuildCommandBuffers(std::unique_ptr<VkCommandBuffer>& command_buffers, cons
 		// Draw the model
 		vkCmdDrawIndexed(
 			command_buffers.get()[i],
-			octopus_model.index_count,	// The model consists of 6 verticies, 2 that are shared between both triangles
+			pbrboy_model.index_count,	// The model consists of 6 verticies, 2 that are shared between both triangles
 			1,							// Draw once model
 			0,
-			octopus_model.vertex_offset,
+			pbrboy_model.vertex_offset,
 			0
 		);
 
@@ -1480,7 +1480,7 @@ int main(int argc, char **argv)
 	SetAlbedoTexture(metal_texture);
 
 	// Load the new model
-	CreateModel("../../Data/Models/Octopus.obj", octopus_model);
+	CreateModel("../../Data/Models/PBRBoy.obj", pbrboy_model);
 
 	// Regenerate the command buffers
 	BuildCommandBuffers(graphics_command_buffers, swapchain_image_count);
