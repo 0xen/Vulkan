@@ -19,11 +19,13 @@ layout(location = 3) in vec2 inUV;
 layout(location = 4) in mat4 inModel;
 
 layout(location = 0) out vec3 outColor;
-layout(location = 1) out vec2 outUV;
+layout(location = 1) out vec3 outNormal;
+layout(location = 2) out vec2 outUV;
 
 void main()
 {
 	gl_Position = camera.projection * camera.position * inModel * vec4(inPosition, 1.0f);
 	outColor = inColor;
+	outNormal = inNormal;
 	outUV = inUV;
 }
