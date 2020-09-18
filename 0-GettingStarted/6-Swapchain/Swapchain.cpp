@@ -354,7 +354,8 @@ void Destroy()
 	);
 }
 
-bool CheckSwapchainSupport(VkSurfaceCapabilitiesKHR& capabilities, VkSurfaceFormatKHR*& formats, uint32_t& format_count, VkPresentModeKHR*& modes, uint32_t& mode_count)
+bool CheckSwapchainSupport(VkSurfaceCapabilitiesKHR& capabilities, VkSurfaceFormatKHR*& formats, 
+	uint32_t& format_count, VkPresentModeKHR*& modes, uint32_t& mode_count)
 {
 	VkResult physical_device_surface_capabilities_res = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
 		physical_device,

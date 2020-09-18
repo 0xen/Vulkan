@@ -1,0 +1,43 @@
+#version 460
+#extension GL_NV_ray_tracing : require
+#extension GL_GOOGLE_include_directive : require
+
+#include "../utils/Structures.glsl"
+
+layout(binding = 0, set = 0) uniform accelerationStructureNV topLevelAS;
+
+layout(binding = 1, set = 0, rgba8) uniform image2D image;
+
+layout(binding = 2, set = 0) readonly uniform CameraBuffer {Camera camera; };
+
+
+layout(location = 0) rayPayloadNV RayPayload rayPayload;
+
+void main() 
+{
+	const vec2 pixel = vec2(gl_LaunchIDNV.x, gl_LaunchIDNV.y);
+	// Get the UV coordinate for the screenspace
+    const vec2 uv = (pixel / gl_LaunchSizeNV.xy) * 2.0 - 1.0;
+
+
+	vec4 origin = camera.position * vec4(0,0, 0, 1);
+	vec4 target = camera.projection * (vec4(uv.x, uv.y, 1, 1));
+
+
+	// Generate Initial Probing ray
+  	vec4 direction = camera.position * vec4(normalize(target.xyz), 0);
+
+
+    // Min-max range of the ray that we spawn
+	const float tmin = 0.001;
+	const float tmax = 10000.0;
+
+   	int MISS_SHADER_INDEX = 0;
+
+   	traceNV(topLevelAS, gl_RayFlagsOpaqueNV | gl_RayFlagsCullBackFacingTrianglesNV,
+		0xFF, 0, 0, MISS_SHADER_INDEX, origin.xyz, tmin, direction.xyz, tmax, 0);
+
+		
+
+    imageStore(image, ivec2(gl_LaunchIDNV.xy), vec4(rayPayload.color.xyz, 1.0f) );
+}

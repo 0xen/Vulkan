@@ -7,15 +7,15 @@
 
 VkInstance instance;
 
-// Compare the required layers to the avaliable layers on the system
+// Compare the required layers to the available layers on the system
 bool CheckLayersSupport(const char** layers, int count)
 {
-	// Find out how many layers are avaliable on the system
+	// Find out how many layers are available on the system
 	uint32_t layerCount;
 	vkEnumerateInstanceLayerProperties(&layerCount, nullptr);
 
 	// Using the count, tell the system how many layer definitions we want to read
-	// These layer properties are the layers that are avaliable on the system
+	// These layer properties are the layers that are available on the system
 	std::unique_ptr<VkLayerProperties[]> layerProperties(new VkLayerProperties[layerCount]());
 	vkEnumerateInstanceLayerProperties(&layerCount, layerProperties.get());
 
@@ -43,10 +43,8 @@ bool CheckLayersSupport(const char** layers, int count)
 	return true;
 }
 
-
 int main(int argc, char **argv)
 {
-
 	const char *instance_layers[] = { "VK_LAYER_LUNARG_standard_validation" };
 	const char *instance_extensions[] = { "VK_EXT_debug_report" };
 

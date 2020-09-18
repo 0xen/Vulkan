@@ -59,4 +59,6 @@ add_subdirectory_with_folder("GettingStarted" 0-GettingStarted/11-Camera)
 add_subdirectory_with_folder("Advanced" 1-Advanced/0-IndirectDrawing)
 add_subdirectory_with_folder("Advanced" 1-Advanced/1-ComputePipeline)
 add_subdirectory_with_folder("Advanced" 1-Advanced/2-ComputeParticleSystem)
+add_subdirectory_with_folder("Advanced" 1-Advanced/3-AccelerationStructure)
+add_subdirectory_with_folder("Advanced" 1-Advanced/4-RaytracingPipeline)
 

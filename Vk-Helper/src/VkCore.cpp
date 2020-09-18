@@ -6,6 +6,94 @@
 #include <memory>
 #include <fstream>
 
+
+VKAPI_ATTR VkResult VKAPI_CALL
+vkCreateRayTracingPipelinesNV(VkDevice      device,
+	VkPipelineCache                         pipelineCache,
+	uint32_t                                createInfoCount,
+	const VkRayTracingPipelineCreateInfoNV* pCreateInfos,
+	const VkAllocationCallbacks* pAllocator,
+	VkPipeline* pPipelines)
+{
+	static const auto call = reinterpret_cast<PFN_vkCreateRayTracingPipelinesNV>(
+		vkGetDeviceProcAddr(device, "vkCreateRayTracingPipelinesNV"));
+	return call(device, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines);
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL
+vkCreateAccelerationStructureNV(VkDevice       device,
+	const VkAccelerationStructureCreateInfoNV* pCreateInfo,
+	const VkAllocationCallbacks* pAllocator,
+	VkAccelerationStructureNV* pAccelerationStructure)
+{
+	static const auto call = reinterpret_cast<PFN_vkCreateAccelerationStructureNV>(
+		vkGetDeviceProcAddr(device, "vkCreateAccelerationStructureNV"));
+	return call(device, pCreateInfo, pAllocator, pAccelerationStructure);
+}
+
+VKAPI_ATTR void VKAPI_CALL vkGetAccelerationStructureMemoryRequirementsNV(
+	VkDevice                                               device,
+	const VkAccelerationStructureMemoryRequirementsInfoNV* pInfo,
+	VkMemoryRequirements2KHR* pMemoryRequirements)
+{
+	static const auto call = reinterpret_cast<PFN_vkGetAccelerationStructureMemoryRequirementsNV>(
+		vkGetDeviceProcAddr(device, "vkGetAccelerationStructureMemoryRequirementsNV"));
+	return call(device, pInfo, pMemoryRequirements);
+}
+
+
+VKAPI_ATTR VkResult VKAPI_CALL
+vkBindAccelerationStructureMemoryNV(VkDevice       device,
+	uint32_t                                       bindInfoCount,
+	const VkBindAccelerationStructureMemoryInfoNV* pBindInfos)
+{
+	static const auto call = reinterpret_cast<PFN_vkBindAccelerationStructureMemoryNV>(
+		vkGetDeviceProcAddr(device, "vkBindAccelerationStructureMemoryNV"));
+	return call(device, bindInfoCount, pBindInfos);
+}
+
+VKAPI_ATTR void VKAPI_CALL
+vkCmdBuildAccelerationStructureNV(
+	VkDevice       device,
+	VkCommandBuffer                      commandBuffer,
+	const VkAccelerationStructureInfoNV* pInfo,
+	VkBuffer                             instanceData,
+	VkDeviceSize                         instanceOffset,
+	VkBool32                             update,
+	VkAccelerationStructureNV            dst,
+	VkAccelerationStructureNV            src,
+	VkBuffer                             scratch,
+	VkDeviceSize                         scratchOffset)
+{
+	static const auto call = reinterpret_cast<PFN_vkCmdBuildAccelerationStructureNV>(
+		vkGetDeviceProcAddr(device, "vkCmdBuildAccelerationStructureNV"));
+	return call(commandBuffer, pInfo, instanceData, instanceOffset, update, dst, src, scratch,
+		scratchOffset);
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL
+vkGetAccelerationStructureHandleNV(VkDevice device,
+	VkAccelerationStructureNV accelerationStructure,
+	size_t                    dataSize,
+	void* pData)
+{
+	static const auto call = reinterpret_cast<PFN_vkGetAccelerationStructureHandleNV>(
+		vkGetDeviceProcAddr(device, "vkGetAccelerationStructureHandleNV"));
+	return call(device, accelerationStructure, dataSize, pData);
+}
+
+VKAPI_ATTR VkResult VKAPI_CALL vkGetRayTracingShaderGroupHandlesNV(VkDevice   device,
+	VkPipeline pipeline,
+	uint32_t   firstGroup,
+	uint32_t   groupCount,
+	size_t     dataSize,
+	void* pData)
+{
+	static const auto call = reinterpret_cast<PFN_vkGetRayTracingShaderGroupHandlesNV>(
+		vkGetDeviceProcAddr(device, "vkGetRayTracingShaderGroupHandlesNV"));
+	return call(device, pipeline, firstGroup, groupCount, dataSize, pData);
+}
+
 // A basic debug callback. A more advanced one could be created, but this will do for basic debugging
 VKAPI_ATTR VkBool32 VKAPI_CALL MyDebugReportCallback(
 	VkDebugReportFlagsEXT       flags,
@@ -371,7 +459,7 @@ VkCommandPool VkHelper::CreateCommandPool(const VkDevice & device, const uint32_
 uint32_t VkHelper::FindMemoryType(const VkPhysicalDeviceMemoryProperties& physical_device_mem_properties,uint32_t type_filter, VkMemoryPropertyFlags properties)
 {
 	// Loop through all memory types on the gpu
-	for (uint32_t i = 0; physical_device_mem_properties.memoryTypeCount; i++)
+	for (uint32_t i = 0; i < physical_device_mem_properties.memoryTypeCount; i++)
 	{
 		// if we find a memory type that matches our type filter and the type has the required properties
 		if (type_filter & (1 << i) && (physical_device_mem_properties.memoryTypes[i].propertyFlags & properties) == properties)
@@ -861,6 +949,27 @@ void VkHelper::EndSingleTimeCommands(const VkDevice& device, const VkQueue& queu
 		command_pool,
 		1,
 		&command_buffer
+	);
+}
+
+void VkHelper::TransitionImageLayout(VkCommandBuffer command_buffer, VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout, VkImageSubresourceRange subresourceRange)
+{
+	// Define how we will convert between the image layouts
+	VkImageMemoryBarrier barrier = VkHelper::ImageMemoryBarrier(image, format, old_layout, new_layout);
+
+	barrier.subresourceRange = subresourceRange;
+	// Submit the barrier update
+	vkCmdPipelineBarrier(
+		command_buffer,
+		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+		VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+		0,
+		0,
+		nullptr,
+		0,
+		nullptr,
+		1,
+		&barrier
 	);
 }
 
@@ -1441,37 +1550,7 @@ VkPipeline VkHelper::CreateComputePipeline(const VkDevice& device, VkPipelineLay
 	// Was the pipeline layout created correctly
 	assert(create_pipeline_result == VK_SUCCESS);
 
-
-	char* shader_data = nullptr;
-	unsigned int shader_size = 0;
-
-	// Load the shader from file
-	VkHelper::ReadShaderFile(
-		shader_path,
-		shader_data,
-		shader_size
-	);
-
-
-	// Create the shader module
-	VkShaderModuleCreateInfo shader_module_create_info = {};
-	shader_module_create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	shader_module_create_info.codeSize = shader_size;
-	shader_module_create_info.pCode = reinterpret_cast<const uint32_t*>(shader_data);
-
-
-	// Create the shader
-	VkResult create_shader_module = vkCreateShaderModule(
-		device,
-		&shader_module_create_info,
-		nullptr,
-		&shader_module
-	);
-	// Validate the shader module
-	assert(create_shader_module == VK_SUCCESS);
-
-	// Destroy the CPU side memory
-	delete[] shader_data;
+	shader_module = LoadShader(device, shader_path);
 
 
 	// Define the type of shader and what function should be called within the shader
@@ -1500,6 +1579,44 @@ VkPipeline VkHelper::CreateComputePipeline(const VkDevice& device, VkPipelineLay
 	assert(create_compute_pipeline == VK_SUCCESS);
 
 	return compute_pipeline;
+}
+
+VkShaderModule VkHelper::LoadShader(const VkDevice& device, const char* path)
+{
+	VkShaderModule shader_module = VK_NULL_HANDLE;
+
+	char* shader_data = nullptr;
+	unsigned int shader_size = 0;
+
+	// Load the shader from file
+	VkHelper::ReadShaderFile(
+		path,
+		shader_data,
+		shader_size
+	);
+
+
+	// Create the shader module
+	VkShaderModuleCreateInfo shader_module_create_info = {};
+	shader_module_create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	shader_module_create_info.codeSize = shader_size;
+	shader_module_create_info.pCode = reinterpret_cast<const uint32_t*>(shader_data);
+
+
+	// Create the shader
+	VkResult create_shader_module = vkCreateShaderModule(
+		device,
+		&shader_module_create_info,
+		nullptr,
+		&shader_module
+	);
+	// Validate the shader module
+	assert(create_shader_module == VK_SUCCESS);
+
+	// Destroy the CPU side memory
+	delete[] shader_data;
+
+	return shader_module;
 }
 
 void VkHelper::CreateImageSampler(const VkDevice& device, const VkImage& image, VkFormat format, VkImageView& imageView, VkSampler& sampler)
@@ -1707,3 +1824,297 @@ void VkHelper::CreateVkSemaphore(const VkDevice& device, VkSemaphore& semaphore)
 	// Was the semaphore created
 	assert(create_semaphore_result == VK_SUCCESS);
 }
+
+void VkHelper::GetPhysicalDevicePropertiesAndFeatures2(const VkPhysicalDevice& physical_device, VkPhysicalDeviceRayTracingPropertiesNV& device_raytracing_properties, VkPhysicalDeviceProperties2& physical_device_properties2, VkPhysicalDeviceFeatures2& device_features2)
+{
+	device_raytracing_properties = VkHelper::CreatePhysicalDeviceRayTracingProperties();
+	physical_device_properties2 = VkHelper::CreatePhysicalDeviceProperties2(device_raytracing_properties);
+
+	VkPhysicalDeviceDescriptorIndexingFeaturesEXT descIndexFeatures;
+
+	vkGetPhysicalDeviceProperties2(
+		physical_device,
+		&physical_device_properties2
+	);
+
+	descIndexFeatures = {};
+	descIndexFeatures.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DESCRIPTOR_INDEXING_FEATURES_EXT;
+
+	device_features2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2;
+	device_features2.pNext = &descIndexFeatures;
+
+	vkGetPhysicalDeviceFeatures2(
+		physical_device,
+		&device_features2
+	);
+}
+
+void VkHelper::CreateBottomLevelASBuffer(VkDevice device, const VkPhysicalDeviceMemoryProperties& physical_device_mem_properties, VkCommandBuffer commandBuffer, ModelInstance& model)
+{
+	VkBuildAccelerationStructureFlagsNV flags = 0;
+
+	{
+		VkAccelerationStructureInfoNV acceleration_structure_info = VkHelper::AccelerationStructureInfoNV(
+			VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_NV,
+			flags,
+			&model.geometry,
+			1,
+			0
+		);
+
+		VkAccelerationStructureCreateInfoNV create_info = VkHelper::AccelerationStructureCreateInfoNV(acceleration_structure_info);
+
+
+		VkResult create_acceleration_structure_result = vkCreateAccelerationStructureNV(
+			device,
+			&create_info,
+			nullptr,
+			&model.acceleration_structure
+		);
+	}
+
+	// The AS needs some space to store temporary info, this space requirements is dependent on the scene complexity
+	VkDeviceSize scratch_size = 0;
+
+	// We need to calculate the final AS size
+	VkDeviceSize result_size = 0;
+
+	VkAccelerationStructureMemoryRequirementsInfoNV memory_requirments_info = VkHelper::AccelerationStructureMemoryRequirmentsInfoNV(model.acceleration_structure);
+
+	VkMemoryRequirements2 memoryRequirements;
+
+	{
+		vkGetAccelerationStructureMemoryRequirementsNV(
+			device,
+			&memory_requirments_info,
+			&memoryRequirements
+		);
+
+		// Size of the resulting AS
+		result_size = memoryRequirements.memoryRequirements.size;
+	}
+
+	{
+		// Store the memory requirements
+		memory_requirments_info.type = VK_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_TYPE_BUILD_SCRATCH_NV;
+		vkGetAccelerationStructureMemoryRequirementsNV(
+			device,
+			&memory_requirments_info,
+			&memoryRequirements
+		);
+
+		scratch_size = memoryRequirements.memoryRequirements.size;
+	}
+
+	{
+		memory_requirments_info.type = VK_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_TYPE_UPDATE_SCRATCH_NV;
+		vkGetAccelerationStructureMemoryRequirementsNV(
+			device,
+			&memory_requirments_info,
+			&memoryRequirements
+		);
+
+		scratch_size = scratch_size > memoryRequirements.memoryRequirements.size ? scratch_size : memoryRequirements.memoryRequirements.size;
+
+	}
+
+	{
+		VkHelper::CreateBuffer(
+			device,																// What device are we going to use to create the buffer
+			physical_device_mem_properties,										// What memory properties are available on the device
+			model.scratch_buffer,														// What buffer are we going to be creating
+			model.scratch_buffer_memory,												// The output for the buffer memory
+			scratch_size,														// How much memory we wish to allocate on the GPU
+			VK_BUFFER_USAGE_RAY_TRACING_BIT_NV,				                    // What type of buffer do we want. Buffers can have multiple types, for example, uniform & vertex buffer.
+																				// for now we want to keep the buffer specialized to one type as this will allow vulkan to optimize the data.
+			VK_SHARING_MODE_EXCLUSIVE,						                    // There are two modes, exclusive and concurrent. Defines if it can concurrently be used by multiple queue
+																				// families at the same time
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT									// What properties do we require of our memory
+		);
+	}
+
+	{
+		VkHelper::CreateBuffer(
+			device,																// What device are we going to use to create the buffer
+			physical_device_mem_properties,										// What memory properties are available on the device
+			model.result_buffer,														// What buffer are we going to be creating
+			model.result_buffer_memory,												// The output for the buffer memory
+			result_size,														// How much memory we wish to allocate on the GPU
+			VK_BUFFER_USAGE_RAY_TRACING_BIT_NV,				                    // What type of buffer do we want. Buffers can have multiple types, for example, uniform & vertex buffer.
+																				// for now we want to keep the buffer specialized to one type as this will allow vulkan to optimize the data.
+			VK_SHARING_MODE_EXCLUSIVE,						                    // There are two modes, exclusive and concurrent. Defines if it can concurrently be used by multiple queue
+																				// families at the same time
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT									// What properties do we require of our memory
+		);
+	}
+
+	// Generate the bottom level AS
+	{
+
+		VkBindAccelerationStructureMemoryInfoNV acceleration_memory_info = VkHelper::AccelerationStructureMemoryInfoNV(
+			model.acceleration_structure, model.result_buffer_memory);
+
+		VkResult code = vkBindAccelerationStructureMemoryNV(
+			device,
+			1,
+			&acceleration_memory_info
+		);
+		assert(code == VK_SUCCESS);
+
+		VkAccelerationStructureInfoNV acceleration_structure_info = VkHelper::AccelerationStructureInfo(0, model.geometry);
+
+		BuildAccelerationStructure(device, commandBuffer, acceleration_structure_info, VK_NULL_HANDLE, model.acceleration_structure, model.scratch_buffer);
+	}
+}
+
+void VkHelper::BuildAccelerationStructure(VkDevice device, VkCommandBuffer commandBuffer, VkAccelerationStructureInfoNV& acceleration_structure_info, 
+	VkBuffer instance_buffer, VkAccelerationStructureNV& acceleration_structure, VkBuffer& scratch_buffer)
+{
+	vkCmdBuildAccelerationStructureNV(device, commandBuffer, &acceleration_structure_info, instance_buffer, 0, VK_FALSE,
+		acceleration_structure, VK_NULL_HANDLE, scratch_buffer, 0);
+
+	// Ensure that the build will be finished before using the AS using a barrier
+	VkMemoryBarrier memoryBarrier;
+	memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
+	memoryBarrier.pNext = nullptr;
+	memoryBarrier.srcAccessMask =
+		VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_NV | VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_NV;
+	memoryBarrier.dstAccessMask =
+		VK_ACCESS_ACCELERATION_STRUCTURE_WRITE_BIT_NV | VK_ACCESS_ACCELERATION_STRUCTURE_READ_BIT_NV;
+
+	vkCmdPipelineBarrier(commandBuffer, VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_NV,
+		VK_PIPELINE_STAGE_ACCELERATION_STRUCTURE_BUILD_BIT_NV, 0, 1, &memoryBarrier,
+		0, nullptr, 0, nullptr);
+}
+
+VkAccelerationStructureNV VkHelper::CreateTopLevelASBuffer(VkDevice device, const VkPhysicalDeviceMemoryProperties& physical_device_mem_properties,
+	VkCommandBuffer commandBuffer, unsigned int model_instances_count,
+	VkBuffer& as_scratch_buffer, VkDeviceMemory& as_scratch_buffer_memory, VkDeviceSize& as_scratch_size,
+	VkBuffer& as_result_buffer, VkDeviceMemory& as_result_buffer_memory, VkDeviceSize& as_result_size,
+	VkBuffer& as_instance_buffer, VkDeviceMemory& as_instance_buffer_memory, VkDeviceSize& as_instances_size)
+{
+	VkAccelerationStructureNV acceleration_structure = VK_NULL_HANDLE;
+
+	// Create Top Level AS Instance
+	VkBuildAccelerationStructureFlagsNV flags = VK_BUILD_ACCELERATION_STRUCTURE_ALLOW_UPDATE_BIT_NV;
+
+	VkAccelerationStructureInfoNV acceleration_structure_info = VkHelper::AccelerationStructureInfoNV(
+		VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_NV,
+		flags,
+		VK_NULL_HANDLE,
+		0,
+		model_instances_count // Total AS count
+	);
+
+	VkAccelerationStructureCreateInfoNV create_info = VkHelper::AccelerationStructureCreateInfoNV(acceleration_structure_info);
+
+
+	VkResult create_acceleration_structure_result = vkCreateAccelerationStructureNV(
+		device,
+		&create_info,
+		nullptr,
+		&acceleration_structure
+	);
+
+	assert(create_acceleration_structure_result == VK_SUCCESS);
+
+
+
+	VkAccelerationStructureMemoryRequirementsInfoNV memory_requirments_info = VkHelper::AccelerationStructureMemoryRequirmentsInfoNV(acceleration_structure);
+
+	VkMemoryRequirements2 memoryRequirements;
+
+
+	{
+		vkGetAccelerationStructureMemoryRequirementsNV(device, &memory_requirments_info, &memoryRequirements);
+
+		// Size of the resulting AS
+		as_result_size = memoryRequirements.memoryRequirements.size;
+	}
+
+	{
+		// Store the memory requirments
+		memory_requirments_info.type = VK_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_TYPE_BUILD_SCRATCH_NV;
+		vkGetAccelerationStructureMemoryRequirementsNV(device, &memory_requirments_info, &memoryRequirements);
+
+		as_scratch_size = memoryRequirements.memoryRequirements.size;
+	}
+
+	{
+		memory_requirments_info.type = VK_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_TYPE_UPDATE_SCRATCH_NV;
+		vkGetAccelerationStructureMemoryRequirementsNV(device, &memory_requirments_info, &memoryRequirements);
+
+		as_scratch_size = as_scratch_size > memoryRequirements.memoryRequirements.size ? as_scratch_size : memoryRequirements.memoryRequirements.size;
+
+	}
+
+
+
+	as_instances_size = model_instances_count * sizeof(VkGeometryInstance);
+
+
+	{
+		VkHelper::CreateBuffer(
+			device,																// What device are we going to use to create the buffer
+			physical_device_mem_properties,										// What memory properties are available on the device
+			as_scratch_buffer,													// What buffer are we going to be creating
+			as_scratch_buffer_memory,											// The output for the buffer memory
+			as_scratch_size,														// How much memory we wish to allocate on the GPU
+			VK_BUFFER_USAGE_RAY_TRACING_BIT_NV,				                    // What type of buffer do we want. Buffers can have multiple types, for example, uniform & vertex buffer.
+																				// for now we want to keep the buffer specialized to one type as this will allow vulkan to optimize the data.
+			VK_SHARING_MODE_EXCLUSIVE,						                    // There are two modes, exclusive and concurrent. Defines if it can concurrently be used by multiple queue
+																				// families at the same time
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT									// What properties do we require of our memory
+		);
+	}
+
+	{
+		VkHelper::CreateBuffer(
+			device,																// What device are we going to use to create the buffer
+			physical_device_mem_properties,										// What memory properties are available on the device
+			as_result_buffer,														// What buffer are we going to be creating
+			as_result_buffer_memory,												// The output for the buffer memory
+			as_result_size,														// How much memory we wish to allocate on the GPU
+			VK_BUFFER_USAGE_RAY_TRACING_BIT_NV,				                    // What type of buffer do we want. Buffers can have multiple types, for example, uniform & vertex buffer.
+																				// for now we want to keep the buffer specialized to one type as this will allow vulkan to optimize the data.
+			VK_SHARING_MODE_EXCLUSIVE,						                    // There are two modes, exclusive and concurrent. Defines if it can concurrently be used by multiple queue
+																				// families at the same time
+			VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT									// What properties do we require of our memory
+		);
+	}
+
+
+
+	if (as_instances_size > 0)
+	{
+		VkHelper::CreateBuffer(
+			device,																		// What device are we going to use to create the buffer
+			physical_device_mem_properties,												// What memory properties are available on the device
+			as_instance_buffer,															// What buffer are we going to be creating
+			as_instance_buffer_memory,														// The output for the buffer memory
+			as_instances_size,																// How much memory we wish to allocate on the GPU
+			VK_BUFFER_USAGE_RAY_TRACING_BIT_NV,											// What type of buffer do we want. Buffers can have multiple types, for example, uniform & vertex buffer.
+																						// for now we want to keep the buffer specialized to one type as this will allow vulkan to optimize the data.
+			VK_SHARING_MODE_EXCLUSIVE,													// There are two modes, exclusive and concurrent. Defines if it can concurrently be used by multiple queue
+																						// families at the same time
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT	// What properties do we require of our memory
+		);
+	}
+
+	// Bind top level memory on creation
+	VkBindAccelerationStructureMemoryInfoNV bindInfo = VkHelper::AccelerationStructureMemoryInfoNV(acceleration_structure, as_result_buffer_memory);
+
+	VkResult bind_acceleration_structure_result = vkBindAccelerationStructureMemoryNV(
+		device,
+		1,
+		&bindInfo
+	);
+
+	assert(bind_acceleration_structure_result == VK_SUCCESS);
+
+	return acceleration_structure;
+}
+
+
+
+

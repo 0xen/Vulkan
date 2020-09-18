@@ -60,13 +60,37 @@ namespace VkHelper
 
 	VkWriteDescriptorSet WriteDescriptorSet(VkDescriptorSet& descriptor_set, VkDescriptorImageInfo& image_info, unsigned int binding);
 
+	VkWriteDescriptorSet WriteDescriptorSet(VkDescriptorSet& descriptor_set, VkDescriptorImageInfo* image_info, unsigned int image_info_count, unsigned int binding);
+
+	VkWriteDescriptorSet WriteDescriptorSet(VkDescriptorSet& descriptor_set, VkDescriptorType type, VkDescriptorImageInfo& image_info, unsigned int binding);
+
 	VkWriteDescriptorSet WriteDescriptorSet(VkDescriptorSet& descriptor_set, VkDescriptorType type, VkDescriptorBufferInfo& buffer_info, unsigned int binding);
+	
+	VkWriteDescriptorSet WriteDescriptorSet(VkDescriptorSet& descriptor_set, VkDescriptorType type, VkWriteDescriptorSetAccelerationStructureNV& buffer_info, unsigned int binding);
 
+	VkRayTracingShaderGroupCreateInfoNV RayTracingShaderGroupCreateNV(VkRayTracingShaderGroupTypeNV type);
 
+	VkPipelineShaderStageCreateInfo PipelineShaderStageCreateInfo(VkShaderModule& shader, const char* main, VkShaderStageFlagBits flag);
 
+	VkSpecializationInfo SpecializationInfo(uint32_t mapEntryCount, const VkSpecializationMapEntry* mapEntries, size_t dataSize, const void* data);
 
+	VkAccelerationStructureInfoNV AccelerationStructureInfoNV(VkAccelerationStructureTypeNV type, VkBuildAccelerationStructureFlagsNV flags, const VkGeometryNV* prt, uint32_t count, uint32_t instance_count);
 
+	VkAccelerationStructureCreateInfoNV AccelerationStructureCreateInfoNV(VkAccelerationStructureInfoNV structure_info);
 
+	VkAccelerationStructureMemoryRequirementsInfoNV AccelerationStructureMemoryRequirmentsInfoNV(VkAccelerationStructureNV str);
 
+	VkWriteDescriptorSetAccelerationStructureNV WriteDescriptorSetAccelerator(VkAccelerationStructureNV& acceleration);
 
+	VkBindAccelerationStructureMemoryInfoNV AccelerationStructureMemoryInfoNV(VkAccelerationStructureNV str, VkDeviceMemory memory);
+
+	VkAccelerationStructureInfoNV AccelerationStructureInfo(VkBuildAccelerationStructureFlagsNV flags, unsigned int instanceCount);
+	
+	VkAccelerationStructureInfoNV AccelerationStructureInfo(VkBuildAccelerationStructureFlagsNV flags, VkGeometryNV& buffer);
+
+	VkGeometryNV CreateRayTraceGeometry(VkBuffer vertexBuffer, VkDeviceSize vertexOffsetInBytes, uint32_t vertexCount, VkDeviceSize vertexSizeInBytes, VkBuffer indexBuffer, VkDeviceSize indexOffsetInBytes, uint32_t indexCount, VkBuffer transformBuffer, VkDeviceSize transformOffsetInBytes, bool isOpaque);
+
+	VkPhysicalDeviceRayTracingPropertiesNV CreatePhysicalDeviceRayTracingProperties();
+
+	VkPhysicalDeviceProperties2 CreatePhysicalDeviceProperties2(VkPhysicalDeviceRayTracingPropertiesNV& ray_traceing_properties);
 }

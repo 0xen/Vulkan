@@ -19,6 +19,46 @@ namespace VkHelper
 		FrameBufferAttachment color, depth;
 	};
 
+
+	struct ModelInstance
+	{
+		unsigned int vertex_offset = 0;
+		unsigned int index_offset = 0;
+		unsigned int vertex_count = 0;
+		unsigned int index_count = 0;
+
+		VkGeometryNV geometry;
+
+		VkAccelerationStructureNV acceleration_structure = VK_NULL_HANDLE;
+
+
+		VkBuffer scratch_buffer = VK_NULL_HANDLE;
+		VkDeviceMemory scratch_buffer_memory = VK_NULL_HANDLE;
+		// Raw pointer that will point to GPU memory
+		void* scratch_mapped_buffer_memory = nullptr;
+
+		VkBuffer result_buffer = VK_NULL_HANDLE;
+		VkDeviceMemory result_buffer_memory = VK_NULL_HANDLE;
+		// Raw pointer that will point to GPU memory
+		void* result_mapped_buffer_memory = nullptr;
+	};
+
+	struct VkGeometryInstance
+	{
+		/// Transform matrix, containing only the top 3 rows
+		float transform[12];
+		/// Instance index
+		uint32_t instanceId : 24;
+		/// Visibility mask
+		uint32_t mask : 8;
+		/// Index of the hit group which will be invoked when a ray hits the instance
+		uint32_t instanceOffset : 24;
+		/// Instance flags, such as culling
+		uint32_t flags : 8;
+		/// Opaque handle of the bottom-level acceleration structure
+		uint64_t accelerationStructureHandle;
+	};
+
 	// Compare the required layers to the avaliable layers on the system
 	bool CheckLayersSupport(const char** layers, int count);
 
@@ -68,6 +108,8 @@ namespace VkHelper
 
 	void EndSingleTimeCommands(const VkDevice& device, const VkQueue& queue, VkCommandBuffer command_buffer, VkCommandPool command_pool);
 
+	void TransitionImageLayout(VkCommandBuffer command_buffer, VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout, VkImageSubresourceRange subresourceRange);
+
 	void TransitionImageLayout(const VkDevice& device, const VkQueue& queue, VkCommandPool command_pool, VkImage image, VkFormat format, VkImageLayout old_layout, VkImageLayout new_layout, VkImageSubresourceRange subresourceRange);
 
 	void CreateAttachmentImages(const VkDevice& device, const VkQueue& queue, uint32_t width, uint32_t height, const VkPhysicalDeviceMemoryProperties& physical_device_mem_properties, const VkPhysicalDeviceFeatures& physical_device_features,
@@ -94,6 +136,8 @@ namespace VkHelper
 	VkPipeline CreateComputePipeline(const VkDevice& device, VkPipelineLayout& compute_pipeline_layout,
 		const char* shader_path, VkShaderModule& shader_module, uint32_t descriptor_set_layout_count, const VkDescriptorSetLayout* descriptor_set_layout);
 
+	VkShaderModule LoadShader(const VkDevice& device, const char* path);
+
 	void CreateImageSampler(const VkDevice& device, const VkImage& image, VkFormat format, VkImageView& imageView, VkSampler& sampler);
 
 	void SetImageLayout(VkCommandBuffer cmdbuffer, VkImage image, VkImageLayout oldImageLayout,
@@ -102,5 +146,21 @@ namespace VkHelper
 	void CreateFence(const VkDevice& device, std::unique_ptr<VkFence>& fences, unsigned int count);
 
 	void CreateVkSemaphore(const VkDevice& device, VkSemaphore& semaphore);
+
+	void GetPhysicalDevicePropertiesAndFeatures2(const VkPhysicalDevice& physical_device, VkPhysicalDeviceRayTracingPropertiesNV& device_raytracing_properties, VkPhysicalDeviceProperties2& physical_device_properties2, VkPhysicalDeviceFeatures2& device_features2);
+
+	void CreateBottomLevelASBuffer(VkDevice device, const VkPhysicalDeviceMemoryProperties& physical_device_mem_properties, VkCommandBuffer commandBuffer, ModelInstance& model);
+
+	void BuildAccelerationStructure(VkDevice device, VkCommandBuffer commandBuffer, VkAccelerationStructureInfoNV& acceleration_structure_info, VkBuffer instance_buffer,
+		VkAccelerationStructureNV& acceleration_structure, VkBuffer& scratch_buffer);
+
+
+	VkAccelerationStructureNV CreateTopLevelASBuffer(VkDevice device, const VkPhysicalDeviceMemoryProperties& physical_device_mem_properties,
+		VkCommandBuffer commandBuffer, unsigned int model_instances_count,
+		VkBuffer& as_scratch_buffer, VkDeviceMemory& as_scratch_buffer_memory, VkDeviceSize& as_scratch_size,
+		VkBuffer& as_result_buffer, VkDeviceMemory& as_result_buffer_memory, VkDeviceSize& as_result_size,
+		VkBuffer& as_instance_buffer, VkDeviceMemory& as_instance_buffer_memory, VkDeviceSize& as_instances_size);
+
+
 
 }

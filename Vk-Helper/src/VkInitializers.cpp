@@ -374,6 +374,40 @@ VkWriteDescriptorSet VkHelper::WriteDescriptorSet(VkDescriptorSet& descriptor_se
 	return descriptorWrite;
 }
 
+VkWriteDescriptorSet VkHelper::WriteDescriptorSet(VkDescriptorSet& descriptor_set, VkDescriptorImageInfo* image_info, unsigned int image_info_count, unsigned int binding)
+{
+	VkWriteDescriptorSet descriptorWrite = {};
+	descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	descriptorWrite.dstSet = descriptor_set;
+	descriptorWrite.dstBinding = binding;
+	descriptorWrite.dstArrayElement = 0;
+	descriptorWrite.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	descriptorWrite.descriptorCount = image_info_count;											// How many descriptors we are updating
+	descriptorWrite.pBufferInfo = VK_NULL_HANDLE;
+	descriptorWrite.pImageInfo = VK_NULL_HANDLE;
+	descriptorWrite.pTexelBufferView = VK_NULL_HANDLE;
+	descriptorWrite.pNext = VK_NULL_HANDLE;
+
+	static const int offset = offsetof(VkWriteDescriptorSet, pImageInfo);
+	// Transfer the VkWriteDescriptorSet into the VkDescriptorImageInfo
+	VkDescriptorImageInfo** data = reinterpret_cast<VkDescriptorImageInfo**>(reinterpret_cast<uint8_t*>(&descriptorWrite) + offset);
+	*data = image_info;
+	return descriptorWrite;
+}
+
+VkWriteDescriptorSet VkHelper::WriteDescriptorSet(VkDescriptorSet& descriptor_set, VkDescriptorType type, VkDescriptorImageInfo& image_info, unsigned int binding)
+{
+	VkWriteDescriptorSet descriptor_write = {};
+	descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	descriptor_write.dstSet = descriptor_set; // write to this descriptor set.
+	descriptor_write.dstBinding = binding; // write to the first, and only binding.
+	descriptor_write.dstArrayElement = 0;
+	descriptor_write.descriptorType = type; // Type of buffer
+	descriptor_write.descriptorCount = 1; // update a single descriptor.
+	descriptor_write.pImageInfo = &image_info;
+	return descriptor_write;
+}
+
 VkWriteDescriptorSet VkHelper::WriteDescriptorSet(VkDescriptorSet& descriptor_set, VkDescriptorType type, VkDescriptorBufferInfo& buffer_info, unsigned int binding)
 {
 	VkWriteDescriptorSet descriptorWrite = {};
@@ -389,4 +423,190 @@ VkWriteDescriptorSet VkHelper::WriteDescriptorSet(VkDescriptorSet& descriptor_se
 	descriptorWrite.pNext = VK_NULL_HANDLE;
 
 	return descriptorWrite;
+}
+
+VkWriteDescriptorSet VkHelper::WriteDescriptorSet(VkDescriptorSet& descriptor_set, VkDescriptorType type, VkWriteDescriptorSetAccelerationStructureNV& buffer_info, unsigned int binding)
+{
+	VkWriteDescriptorSet descriptorWrite = {};
+	descriptorWrite.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+	descriptorWrite.dstSet = descriptor_set;
+	descriptorWrite.dstBinding = binding;
+	descriptorWrite.dstArrayElement = 0;
+	descriptorWrite.descriptorType = type;
+	descriptorWrite.descriptorCount = 1;
+	descriptorWrite.pBufferInfo = VK_NULL_HANDLE;
+	descriptorWrite.pImageInfo = VK_NULL_HANDLE;
+	descriptorWrite.pTexelBufferView = VK_NULL_HANDLE;
+	descriptorWrite.pNext = VK_NULL_HANDLE;
+
+	static const int offset = offsetof(VkWriteDescriptorSet, pNext);
+
+	VkWriteDescriptorSetAccelerationStructureNV** data = reinterpret_cast<VkWriteDescriptorSetAccelerationStructureNV**>(reinterpret_cast<uint8_t*>(&descriptorWrite) + offset);
+
+	*data = &buffer_info;
+
+	return descriptorWrite;
+}
+
+VkRayTracingShaderGroupCreateInfoNV VkHelper::RayTracingShaderGroupCreateNV(VkRayTracingShaderGroupTypeNV type)
+{
+	VkRayTracingShaderGroupCreateInfoNV groupInfo{};
+	groupInfo.sType = VK_STRUCTURE_TYPE_RAY_TRACING_SHADER_GROUP_CREATE_INFO_NV;
+	groupInfo.pNext = nullptr;
+	groupInfo.type = type;
+	groupInfo.generalShader = VK_SHADER_UNUSED_NV;
+	groupInfo.closestHitShader = VK_SHADER_UNUSED_NV;
+	groupInfo.anyHitShader = VK_SHADER_UNUSED_NV;
+	groupInfo.intersectionShader = VK_SHADER_UNUSED_NV;
+	return groupInfo;
+}
+
+VkPipelineShaderStageCreateInfo VkHelper::PipelineShaderStageCreateInfo(VkShaderModule& shader, const char* main, VkShaderStageFlagBits flag)
+{
+	VkPipelineShaderStageCreateInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	info.stage = flag;
+	info.module = shader;
+	info.pName = main;
+	return info;
+}
+
+VkSpecializationInfo VkHelper::SpecializationInfo(uint32_t mapEntryCount, const VkSpecializationMapEntry* mapEntries, size_t dataSize, const void* data)
+{
+	VkSpecializationInfo specializationInfo{};
+	specializationInfo.mapEntryCount = mapEntryCount;
+	specializationInfo.pMapEntries = mapEntries;
+	specializationInfo.dataSize = dataSize;
+	specializationInfo.pData = data;
+	return specializationInfo;
+}
+
+VkAccelerationStructureInfoNV VkHelper::AccelerationStructureInfoNV(VkAccelerationStructureTypeNV type, VkBuildAccelerationStructureFlagsNV flags, const VkGeometryNV* prt, uint32_t count, uint32_t instance_count)
+{
+	VkAccelerationStructureInfoNV accelerationStructureInfo{};
+	accelerationStructureInfo.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_INFO_NV;
+	accelerationStructureInfo.type = type;
+	accelerationStructureInfo.flags = flags;
+	accelerationStructureInfo.instanceCount = instance_count;  // The bottom-level AS can only contain explicit geometry, and no instances
+	accelerationStructureInfo.geometryCount = count;
+	accelerationStructureInfo.pGeometries = prt;
+
+	return accelerationStructureInfo;
+}
+
+VkAccelerationStructureCreateInfoNV VkHelper::AccelerationStructureCreateInfoNV(VkAccelerationStructureInfoNV structure_info)
+{
+	VkAccelerationStructureCreateInfoNV info{ VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_NV };
+	info.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_CREATE_INFO_NV;
+	info.pNext = nullptr;
+	info.info = structure_info;
+	info.compactedSize = 0;
+	return info;
+}
+
+VkAccelerationStructureMemoryRequirementsInfoNV VkHelper::AccelerationStructureMemoryRequirmentsInfoNV(VkAccelerationStructureNV str)
+{
+	VkAccelerationStructureMemoryRequirementsInfoNV memoryRequirementsInfo;
+	memoryRequirementsInfo.sType =
+		VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_INFO_NV;
+	memoryRequirementsInfo.pNext = nullptr;
+	memoryRequirementsInfo.accelerationStructure = str;
+	memoryRequirementsInfo.type = VK_ACCELERATION_STRUCTURE_MEMORY_REQUIREMENTS_TYPE_OBJECT_NV;
+	return memoryRequirementsInfo;
+}
+
+VkWriteDescriptorSetAccelerationStructureNV VkHelper::WriteDescriptorSetAccelerator(VkAccelerationStructureNV& acceleration)
+{
+	VkWriteDescriptorSetAccelerationStructureNV descriptorAccelerationStructureInfo;
+	descriptorAccelerationStructureInfo.sType =
+		VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET_ACCELERATION_STRUCTURE_NV;
+	descriptorAccelerationStructureInfo.pNext = nullptr;
+	descriptorAccelerationStructureInfo.accelerationStructureCount = 1;
+	descriptorAccelerationStructureInfo.pAccelerationStructures = &acceleration;
+	return descriptorAccelerationStructureInfo;
+}
+
+VkBindAccelerationStructureMemoryInfoNV VkHelper::AccelerationStructureMemoryInfoNV(VkAccelerationStructureNV str, VkDeviceMemory memory)
+{
+	VkBindAccelerationStructureMemoryInfoNV info{};
+	info.sType = VK_STRUCTURE_TYPE_BIND_ACCELERATION_STRUCTURE_MEMORY_INFO_NV;
+	info.pNext = nullptr;
+	info.accelerationStructure = str;
+	info.memory = memory;
+	info.memoryOffset = 0;
+	info.deviceIndexCount = 0;
+	info.pDeviceIndices = nullptr;
+	return info;
+}
+
+VkAccelerationStructureInfoNV VkHelper::AccelerationStructureInfo(VkBuildAccelerationStructureFlagsNV flags, unsigned int instanceCount)
+{
+	VkAccelerationStructureInfoNV info;
+	info.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_INFO_NV;
+	info.pNext = nullptr;
+	info.flags = flags;
+	info.type = VK_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL_NV;
+	info.geometryCount = 0;
+	info.pGeometries = nullptr;
+	info.instanceCount = instanceCount;
+	return info;
+}
+
+VkAccelerationStructureInfoNV VkHelper::AccelerationStructureInfo(VkBuildAccelerationStructureFlagsNV flags, VkGeometryNV& buffer)
+{
+	VkAccelerationStructureInfoNV info;
+	info.sType = VK_STRUCTURE_TYPE_ACCELERATION_STRUCTURE_INFO_NV;
+	info.pNext = nullptr;
+	info.flags = flags;
+	info.type = VK_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL_NV;
+	info.geometryCount = 1;
+	info.pGeometries = &buffer;
+	info.instanceCount = 0;
+	return info;
+}
+
+VkGeometryNV VkHelper::CreateRayTraceGeometry(VkBuffer vertexBuffer, VkDeviceSize vertexOffsetInBytes, uint32_t vertexCount, VkDeviceSize vertexSizeInBytes, VkBuffer indexBuffer, VkDeviceSize indexOffsetInBytes, uint32_t indexCount, VkBuffer transformBuffer, VkDeviceSize transformOffsetInBytes, bool isOpaque)
+{
+	VkGeometryNV geometry;
+	geometry.sType = VK_STRUCTURE_TYPE_GEOMETRY_NV;
+	geometry.pNext = nullptr;
+	geometry.geometryType = VK_GEOMETRY_TYPE_TRIANGLES_NV;
+	geometry.geometry.triangles.sType = VK_STRUCTURE_TYPE_GEOMETRY_TRIANGLES_NV;
+	geometry.geometry.triangles.pNext = nullptr;
+	geometry.geometry.triangles.vertexData = vertexBuffer;
+	geometry.geometry.triangles.vertexOffset = vertexOffsetInBytes;
+	geometry.geometry.triangles.vertexCount = vertexCount;
+	geometry.geometry.triangles.vertexStride = vertexSizeInBytes;
+	// Limitation to 3xfloat32 for vertices
+	geometry.geometry.triangles.vertexFormat = VK_FORMAT_R32G32B32_SFLOAT;
+	geometry.geometry.triangles.indexData = indexBuffer;
+	geometry.geometry.triangles.indexOffset = indexOffsetInBytes;
+	geometry.geometry.triangles.indexCount = indexCount;
+	// Limitation to 32-bit indices
+	geometry.geometry.triangles.indexType = VK_INDEX_TYPE_UINT32;
+	geometry.geometry.triangles.transformData = transformBuffer;
+	geometry.geometry.triangles.transformOffset = transformOffsetInBytes;
+	geometry.geometry.aabbs = { VK_STRUCTURE_TYPE_GEOMETRY_AABB_NV };
+	geometry.flags = isOpaque ? VK_GEOMETRY_OPAQUE_BIT_NV : 0;
+
+	return geometry;
+}
+
+VkPhysicalDeviceRayTracingPropertiesNV VkHelper::CreatePhysicalDeviceRayTracingProperties()
+{
+	VkPhysicalDeviceRayTracingPropertiesNV device_raytracing_properties = {};
+	device_raytracing_properties.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RAY_TRACING_PROPERTIES_NV;
+	device_raytracing_properties.pNext = nullptr;
+	device_raytracing_properties.maxRecursionDepth = 0;
+	device_raytracing_properties.shaderGroupHandleSize = 0;
+	return device_raytracing_properties;
+}
+
+VkPhysicalDeviceProperties2 VkHelper::CreatePhysicalDeviceProperties2(VkPhysicalDeviceRayTracingPropertiesNV& ray_traceing_properties)
+{
+	VkPhysicalDeviceProperties2 physical_device_properties2 = {};
+	physical_device_properties2.sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2;
+	physical_device_properties2.pNext = &ray_traceing_properties;
+	physical_device_properties2.properties = {};
+	return physical_device_properties2;
 }

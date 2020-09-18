@@ -68,3 +68,9 @@ Compute pipelines are very useful for a whole range of tasks within rendering, i
 
 ### [2 - ComputeParticleSystem](1-Advanced/2-ComputeParticleSystem/)
 In this example, we create a particle system. This particle system takes advantage of compute shaders from the previous project and allows for the GPU to update the positions and color of the particles. The benefit of using a GPU based particle system over a CPU based on is after every update of a CPU based particle system, we have to transfer the data over to the GPU. This is fine with small particle systems, but if we end up dealing with thousands of systems each with thousands of particles, it will end up causing a bottleneck. Instead, if we use GPU updated particles, each particle gets updated highly multithreaded on the GPU with no need to transfer data between the CPU and GPU memory.
+
+### [3 - AccelerationStructure](1-Advanced/3-AccelerationStructure/)
+In this example we cover how to prepair your model to be used with RTX by creating it a Acceleration Structure, after this we take the model acceleration structure or "bottom level AS" and make a top level acceleration structure that will be used for triangle ray intersection calculations in the next tutorial
+
+### [4 - RaytracingPipeline](1-Advanced/4-RaytracingPipeline/)
+In this example we cover how to create a raytracing pipeline, how to render using it in the command buffer recording and finaly some examples of shaders needed to get RTX up and running
