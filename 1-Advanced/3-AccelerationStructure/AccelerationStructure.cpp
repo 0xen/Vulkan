@@ -1453,51 +1453,6 @@ void Render()
 	assert(device_idle_result == VK_SUCCESS);
 }
 
-VKAPI_ATTR VkResult VKAPI_CALL
-vkCreateRayTracingPipelinesNV(VkDevice      device,
-	VkPipelineCache                         pipelineCache,
-	uint32_t                                createInfoCount,
-	const VkRayTracingPipelineCreateInfoNV* pCreateInfos,
-	const VkAllocationCallbacks* pAllocator,
-	VkPipeline* pPipelines)
-{
-	static const auto call = reinterpret_cast<PFN_vkCreateRayTracingPipelinesNV>(
-		vkGetDeviceProcAddr(device, "vkCreateRayTracingPipelinesNV"));
-	return call(device, pipelineCache, createInfoCount, pCreateInfos, pAllocator, pPipelines);
-}
-
-VKAPI_ATTR VkResult VKAPI_CALL
-vkCreateAccelerationStructureNV(VkDevice       device,
-	const VkAccelerationStructureCreateInfoNV* pCreateInfo,
-	const VkAllocationCallbacks* pAllocator,
-	VkAccelerationStructureNV* pAccelerationStructure)
-{
-	static const auto call = reinterpret_cast<PFN_vkCreateAccelerationStructureNV>(
-		vkGetDeviceProcAddr(device, "vkCreateAccelerationStructureNV"));
-	return call(device, pCreateInfo, pAllocator, pAccelerationStructure);
-}
-
-VKAPI_ATTR void VKAPI_CALL vkGetAccelerationStructureMemoryRequirementsNV(
-	VkDevice                                               device,
-	const VkAccelerationStructureMemoryRequirementsInfoNV* pInfo,
-	VkMemoryRequirements2KHR* pMemoryRequirements)
-{
-	static const auto call = reinterpret_cast<PFN_vkGetAccelerationStructureMemoryRequirementsNV>(
-		vkGetDeviceProcAddr(device, "vkGetAccelerationStructureMemoryRequirementsNV"));
-	return call(device, pInfo, pMemoryRequirements);
-}
-
-
-VKAPI_ATTR VkResult VKAPI_CALL
-vkBindAccelerationStructureMemoryNV(VkDevice       device,
-	uint32_t                                       bindInfoCount,
-	const VkBindAccelerationStructureMemoryInfoNV* pBindInfos)
-{
-	static const auto call = reinterpret_cast<PFN_vkBindAccelerationStructureMemoryNV>(
-		vkGetDeviceProcAddr(device, "vkBindAccelerationStructureMemoryNV"));
-	return call(device, bindInfoCount, pBindInfos);
-}
-
 VKAPI_ATTR void VKAPI_CALL
 vkCmdBuildAccelerationStructureNV(
 	VkCommandBuffer                      commandBuffer,
@@ -1508,60 +1463,12 @@ vkCmdBuildAccelerationStructureNV(
 	VkAccelerationStructureNV            dst,
 	VkAccelerationStructureNV            src,
 	VkBuffer                             scratch,
-	VkDeviceSize                         scratchOffset)
+	VkDeviceSize                         scratchOffset )
 {
 	static const auto call = reinterpret_cast<PFN_vkCmdBuildAccelerationStructureNV>(
-		vkGetDeviceProcAddr(device, "vkCmdBuildAccelerationStructureNV"));
-	return call(commandBuffer, pInfo, instanceData, instanceOffset, update, dst, src, scratch,
-		scratchOffset);
-}
-
-VKAPI_ATTR VkResult VKAPI_CALL
-vkGetAccelerationStructureHandleNV(VkDevice device,
-	VkAccelerationStructureNV accelerationStructure,
-	size_t                    dataSize,
-	void* pData)
-{
-	static const auto call = reinterpret_cast<PFN_vkGetAccelerationStructureHandleNV>(
-		vkGetDeviceProcAddr(device, "vkGetAccelerationStructureHandleNV"));
-	return call(device, accelerationStructure, dataSize, pData);
-}
-
-VKAPI_ATTR VkResult VKAPI_CALL vkGetRayTracingShaderGroupHandlesNV(VkDevice   device,
-	VkPipeline pipeline,
-	uint32_t   firstGroup,
-	uint32_t   groupCount,
-	size_t     dataSize,
-	void* pData)
-{
-	static const auto call = reinterpret_cast<PFN_vkGetRayTracingShaderGroupHandlesNV>(
-		vkGetDeviceProcAddr(device, "vkGetRayTracingShaderGroupHandlesNV"));
-	return call(device, pipeline, firstGroup, groupCount, dataSize, pData);
-}
-
-VKAPI_ATTR void VKAPI_CALL vkCmdTraceRaysNV(VkCommandBuffer commandBuffer,
-	VkBuffer        raygenShaderBindingTableBuffer,
-	VkDeviceSize    raygenShaderBindingOffset,
-	VkBuffer        missShaderBindingTableBuffer,
-	VkDeviceSize    missShaderBindingOffset,
-	VkDeviceSize    missShaderBindingStride,
-	VkBuffer        hitShaderBindingTableBuffer,
-	VkDeviceSize    hitShaderBindingOffset,
-	VkDeviceSize    hitShaderBindingStride,
-	VkBuffer        callableShaderBindingTableBuffer,
-	VkDeviceSize    callableShaderBindingOffset,
-	VkDeviceSize    callableShaderBindingStride,
-	uint32_t        width,
-	uint32_t        height,
-	uint32_t        depth)
-{
-	static const auto call = reinterpret_cast<PFN_vkCmdTraceRaysNV>(
-		vkGetDeviceProcAddr(device, "vkCmdTraceRaysNV"));
-	return call(commandBuffer, raygenShaderBindingTableBuffer, raygenShaderBindingOffset,
-		missShaderBindingTableBuffer, missShaderBindingOffset, missShaderBindingStride,
-		hitShaderBindingTableBuffer, hitShaderBindingOffset, hitShaderBindingStride,
-		callableShaderBindingTableBuffer, callableShaderBindingOffset,
-		callableShaderBindingStride, width, height, depth);
+		vkGetDeviceProcAddr( device, "vkCmdBuildAccelerationStructureNV" ));
+	return call( commandBuffer, pInfo, instanceData, instanceOffset, update, dst, src, scratch,
+		scratchOffset );
 }
 
 VkDeviceSize CopyShaderData(uint8_t* outputData, uint32_t groupIndex, VkDeviceSize entrySize, const uint8_t* shaderHandleStorage, unsigned char* inlineData, unsigned int inlineDataSize)

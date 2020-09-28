@@ -1305,7 +1305,7 @@ void LoadModel(const char* path, VkHelper::ModelInstance& model_instance)
 void CreateModel(VkHelper::ModelInstance& model_instance, glm::mat4 transform, uint32_t instanceID, uint32_t hitGroupIndex)
 {
 	as_instance.push_back({
-		pbrboy_model.acceleration_structure,
+		model_instance.acceleration_structure,
 		transform,
 		instanceID,
 		hitGroupIndex												// What hit group is used on model ray collision
