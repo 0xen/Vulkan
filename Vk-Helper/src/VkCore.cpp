@@ -1213,11 +1213,11 @@ VkRenderPass VkHelper::CreateRenderPass(const VkPhysicalDevice & physical_device
 
 
 	// How many color attachments we have
-	const uint32_t color_attachment_refrence_count = 2;
+	const uint32_t color_attachment_refrence_count = 1;
 	// Place all the color attachments into a single array
 	VkAttachmentReference color_attachment_refrences[color_attachment_refrence_count] = {
-		present_attachment_refrence,
-		color_attachment_refrence
+		present_attachment_refrence//,
+		//color_attachment_refrence
 	};
 
 	// In each subpass what attachment refrences we we use
@@ -1455,15 +1455,25 @@ VkPipeline VkHelper::CreateGraphicsPipeline(const VkPhysicalDevice & physical_de
 
 
 	// Define how color blending will happen between attachments
-	VkPipelineColorBlendAttachmentState color_blend_attachment = {};
-	color_blend_attachment.colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
-	color_blend_attachment.blendEnable = VK_TRUE;
-	color_blend_attachment.srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
-	color_blend_attachment.dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-	color_blend_attachment.colorBlendOp = VK_BLEND_OP_ADD;
-	color_blend_attachment.srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
-	color_blend_attachment.dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
-	color_blend_attachment.alphaBlendOp = VK_BLEND_OP_ADD;
+	VkPipelineColorBlendAttachmentState color_blend_attachment[2];
+	color_blend_attachment[0] = {};
+	color_blend_attachment[0].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	color_blend_attachment[0].blendEnable = VK_TRUE;
+	color_blend_attachment[0].srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+	color_blend_attachment[0].dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	color_blend_attachment[0].colorBlendOp = VK_BLEND_OP_ADD;
+	color_blend_attachment[0].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	color_blend_attachment[0].dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+	color_blend_attachment[0].alphaBlendOp = VK_BLEND_OP_ADD;
+	color_blend_attachment[1] = {};
+	color_blend_attachment[1].colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
+	color_blend_attachment[1].blendEnable = VK_TRUE;
+	color_blend_attachment[1].srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA;
+	color_blend_attachment[1].dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	color_blend_attachment[1].colorBlendOp = VK_BLEND_OP_ADD;
+	color_blend_attachment[1].srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
+	color_blend_attachment[1].dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO;
+	color_blend_attachment[1].alphaBlendOp = VK_BLEND_OP_ADD;
 
 
 	// Define how much color blending will happen between draws, in this case we want none
@@ -1472,7 +1482,7 @@ VkPipeline VkHelper::CreateGraphicsPipeline(const VkPhysicalDevice & physical_de
 	color_blending.logicOpEnable = VK_FALSE;
 	color_blending.logicOp = VK_LOGIC_OP_COPY;
 	color_blending.attachmentCount = 1;
-	color_blending.pAttachments = &color_blend_attachment;
+	color_blending.pAttachments = color_blend_attachment;
 	color_blending.blendConstants[0] = 0.0f;
 	color_blending.blendConstants[1] = 0.0f;
 	color_blending.blendConstants[2] = 0.0f;
