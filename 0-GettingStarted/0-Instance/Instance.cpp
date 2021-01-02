@@ -45,7 +45,7 @@ bool CheckLayersSupport(const char** layers, int count)
 
 int main(int argc, char **argv)
 {
-	const char *instance_layers[] = { "VK_LAYER_LUNARG_standard_validation" };
+	const char *instance_layers[] = { "VK_LAYER_KHRONOS_validation" };
 	const char *instance_extensions[] = { "VK_EXT_debug_report" };
 
 	// Check to see if we have the layer requirments
